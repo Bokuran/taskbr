@@ -1,112 +1,249 @@
-      <!doctype html>
-      <html lang="ru">
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-        <title>TBH: Task Bar Hero — Idle RPG</title>
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
-        <link rel="stylesheet" href="css/style.css">
-      </head>
-      <body>
-        <div class="bg"><i class="orb o1"></i><i class="orb o2"></i><i class="orb o3"></i><div class="grain"></div></div>
-
-        <header class="top">
-          <div class="brand"><div class="logo">TBH</div><div class="brandText"><b>TASK BAR HERO</b><span>автобой · экипировка · выживание отряда</span></div></div>
-          <div class="resources">
-            <div class="res gold"><span>🪙</span><b id="gold">0</b></div>
-            <div class="res gem"><span>💎</span><b id="gems">0</b></div>
-            <div class="res dps"><span>⚔</span><b id="dps">0</b><small>/с</small></div>
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <title>TBH: Task Bar Hero — Idle RPG</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div class="bg">
+      <i class="orb o1"></i><i class="orb o2"></i><i class="orb o3"></i>
+      <div class="grain"></div>
+    </div>
+    <header class="top">
+      <div class="brand">
+        <div class="logo">TBH</div>
+        <div class="brandText">
+          <b>TASK BAR HERO</b
+          ><span>автобой · экипировка · выживание отряда</span>
+        </div>
+      </div>
+      <div class="resources">
+        <div class="res gold"><span>🪙</span><b id="gold">0</b></div>
+        <div class="res gem"><span>💎</span><b id="gems">0</b></div>
+        <div class="res dps">
+          <span>⚔</span><b id="dps">0</b><small>/с</small>
+        </div>
+      </div>
+      <div class="topControls">
+        <button
+          id="pauseBtn"
+          class="iconBtn"
+          title="Пауза (P)"
+          aria-label="Пауза"
+          aria-pressed="false"
+        >
+          ⏸
+        </button>
+        <button
+          id="speedBtn"
+          class="iconBtn wide"
+          title="Скорость боя"
+          aria-label="Скорость боя"
+        >
+          ×1
+        </button>
+        <button
+          id="soundBtn"
+          class="iconBtn"
+          title="Выключить звук (M)"
+          aria-label="Звук"
+          aria-pressed="true"
+        >
+          🔊
+        </button>
+        <button
+          id="helpBtn"
+          class="iconBtn"
+          title="Справка"
+          aria-label="Справка"
+        >
+          ?
+        </button>
+        <button
+          id="resetBtn"
+          class="iconBtn danger"
+          title="Сбросить прогресс"
+          aria-label="Сбросить прогресс"
+        >
+          ↺
+        </button>
+      </div>
+    </header>
+    <main class="game">
+      <section class="stagePanel">
+        <div id="hint" class="hint">
+          <span
+            >Монстры бьют героев напрямую. Следите за HP над головой, броня
+            защищает каждого, а Целительница лечит раненых.</span
+          >
+          <button id="hintClose" aria-label="Закрыть подсказку">✕</button>
+        </div>
+        <div class="stageHead">
+          <div class="zone">
+            <span id="zoneIcon">🌲</span>
+            <div>
+              <b id="zoneName">Изумрудный лес</b
+              ><small id="waveLabel">Волна 1</small>
+            </div>
           </div>
-          <div class="topControls">
-            <button id="pauseBtn" class="iconBtn" title="Пауза (P)">⏸</button>
-            <button id="speedBtn" class="iconBtn wide" title="Скорость боя">×1</button>
-            <button id="soundBtn" class="iconBtn" title="Звук (M)">🔊</button>
-            <button id="helpBtn" class="iconBtn" title="Справка">?</button>
-            <button id="resetBtn" class="iconBtn danger" title="Сбросить прогресс">↺</button>
+          <div class="waveTools">
+            <button id="prevWave" class="miniBtn" title="Предыдущая волна">
+              ◀
+            </button>
+            <span id="progress" class="progressText">0/0</span>
+            <button id="nextWave" class="miniBtn" title="Следующая волна">
+              ▶
+            </button>
+            <button id="autoBtn" class="autoChip">АВТО ▶</button>
           </div>
-        </header>
-
-        <main class="game">
-          <section class="stagePanel">
-            <div id="hint" class="hint">
-              <span>Монстры бьют героев напрямую. Следите за HP над головой, броня защищает каждого, а Целительница лечит раненых.</span>
-              <button id="hintClose" aria-label="Закрыть подсказку">✕</button>
+        </div>
+        <div class="bossBar" id="bossBar">
+          <span id="bossName">БОСС</span>
+          <div><i id="bossFill"></i></div>
+          <b id="bossTime">45с</b>
+        </div>
+        <div class="stageWrap" id="stageWrap">
+          <canvas id="stage"></canvas>
+          <div class="scan"></div>
+          <div id="banner" class="banner"></div>
+          <div id="pauseOverlay" class="pauseOverlay">ПАУЗА</div>
+          <div id="hurt" class="hurt"></div>
+        </div>
+        <div class="stageFoot">
+          <div class="party">
+            <span>❤️ Отряд</span>
+            <div class="hp"><i id="partyFill"></i></div>
+            <b id="partyText">0/0 в строю</b>
+            <small id="partyStats">HP 0/0 · ✚ 0/с</small>
+          </div>
+          <div class="dropInfo">
+            🎁 Дроп: <b id="dropInfo">10%</b> · босс <b>100%</b>
+          </div>
+        </div>
+      </section>
+      <nav class="mobileTabs">
+        <button data-tab="heroes" class="on">⚔ Отряд</button>
+        <button data-tab="bag">🎒 Инвентарь</button>
+        <button data-tab="camp">🏕 Лагерь</button>
+      </nav>
+      <section class="panels">
+        <article class="panel heroes active" data-panel="heroes">
+          <div class="panelHead">
+            <h2>ОТРЯД</h2>
+            <div class="seg" id="buyQty">
+              <button data-q="1" class="on">×1</button
+              ><button data-q="10">×10</button><button data-q="max">MAX</button>
             </div>
-            <div class="stageHead">
-              <div class="zone"><span id="zoneIcon">🌲</span><div><b id="zoneName">Изумрудный лес</b><small id="waveLabel">Волна 1</small></div></div>
-              <div class="waveTools">
-                <button id="prevWave" class="miniBtn" title="Предыдущая волна">◀</button>
-                <span id="progress" class="progressText">0/0</span>
-                <button id="nextWave" class="miniBtn" title="Следующая волна">▶</button>
-                <button id="autoBtn" class="autoChip">АВТО ▶</button>
+          </div>
+          <div class="panelBody" id="heroList"></div>
+        </article>
+        <article class="panel bag" data-panel="bag">
+          <div class="panelHead">
+            <h2>ИНВЕНТАРЬ <em id="bagCount">0/60</em></h2>
+            <button
+              id="sellSpare"
+              class="miniBtn"
+              title="Продать всё, что не входит в лучший комплект отряда"
+            >
+              🧹 Продать лишнее
+            </button>
+          </div>
+          <div class="filters">
+            <select id="filterSlot">
+              <option value="all">Все слоты</option>
+            </select>
+            <select id="filterRarity">
+              <option value="all">Любая редкость</option>
+            </select>
+            <select id="sortItems">
+              <option value="new">Сначала новые</option>
+              <option value="power">Сначала сильные</option>
+              <option value="value">Сначала дорогие</option>
+            </select>
+            <select
+              id="autoSell"
+              title="Автопродажа дропа: по редкости или всё, что не улучшает лучший комплект. «Всё лишнее» продаёт и запас для ненайнятых героев."
+            >
+              <option value="off">Автопродажа: выкл</option>
+              <option value="common">Авто: обычное</option>
+              <option value="uncommon">Авто: ≤ необычное</option>
+              <option value="rare">Авто: ≤ редкое</option>
+              <option value="spare">Авто: всё лишнее</option>
+            </select>
+          </div>
+          <div class="panelBody items" id="itemList"></div>
+        </article>
+        <article class="panel camp" data-panel="camp">
+          <div class="panelHead"><h2>ЛАГЕРЬ</h2></div>
+          <div class="panelBody">
+            <div class="campCard">
+              <div class="campIcon">⛺</div>
+              <div class="campInfo">
+                <b>Полевой лазарет</b
+                ><span id="lazInfo">Ур. 0 · +0% HP героям</span>
               </div>
+              <button id="lazBtn" class="buyBtn">
+                <b>Улучшить</b><span>🪙 60</span>
+              </button>
             </div>
-            <div class="bossBar" id="bossBar"><span id="bossName">БОСС</span><div><i id="bossFill"></i></div><b id="bossTime">45с</b></div>
-            <div class="stageWrap" id="stageWrap">
-              <canvas id="stage"></canvas><div class="scan"></div><div id="banner" class="banner"></div>
-              <div id="pauseOverlay" class="pauseOverlay">ПАУЗА</div><div id="hurt" class="hurt"></div>
+            <div class="campCard">
+              <div class="campIcon">⛏</div>
+              <div class="campInfo">
+                <b>Золотая жила</b
+                ><span id="mineInfo">Ур. 0 · ×1.00 золото</span>
+              </div>
+              <button id="mineBtn" class="buyBtn">
+                <b>Улучшить</b><span>🪙 120</span>
+              </button>
             </div>
-            <div class="stageFoot">
-              <div class="party">
-                <span>❤️ Отряд</span><div class="hp"><i id="partyFill"></i></div><b id="partyText">0/0 в строю</b>
-                <small id="partyStats">HP 0/0 · ✚ 0/с</small>
-              </div>
-              <div class="dropInfo">🎁 Дроп: <b id="dropInfo">10%</b> · босс <b>100%</b></div>
+            <div class="prestige">
+              <h3>💎 ПЕРЕРОЖДЕНИЕ</h3>
+              <p>
+                Сброс прогресса, инвентаря и экипировки ради кристаллов. Каждый
+                кристалл даёт <b>+12%</b> к урону, лечению и золоту навсегда.
+              </p>
+              <div class="prestigeGain" id="prestGain">Доступно с волны 20</div>
+              <button id="prestBtn" class="bigBtn">Переродиться</button>
             </div>
-          </section>
-
-          <nav class="mobileTabs">
-            <button data-tab="heroes" class="on">⚔ Отряд</button>
-            <button data-tab="bag">🎒 Инвентарь</button>
-            <button data-tab="camp">🏕 Лагерь</button>
-          </nav>
-
-          <section class="panels">
-            <article class="panel heroes active" data-panel="heroes">
-              <div class="panelHead"><h2>ОТРЯД</h2><div class="seg" id="buyQty"><button data-q="1" class="on">×1</button><button data-q="10">×10</button><button data-q="max">MAX</button></div></div>
-              <div class="panelBody" id="heroList"></div>
-            </article>
-
-            <article class="panel bag" data-panel="bag">
-              <div class="panelHead"><h2>ИНВЕНТАРЬ <em id="bagCount">0/60</em></h2><button id="sellJunk" class="miniBtn">Продать обычное</button></div>
-              <div class="filters">
-                <select id="filterSlot"><option value="all">Все слоты</option></select>
-                <select id="filterRarity"><option value="all">Любая редкость</option></select>
-                <select id="sortItems"><option value="new">Сначала новые</option><option value="power">Сначала сильные</option><option value="value">Сначала дорогие</option></select>
-                <select id="autoSell" title="Автоматически продавать предметы не выше выбранной редкости">
-                  <option value="off">Автопродажа: выкл</option><option value="common">Авто: обычное</option>
-                  <option value="uncommon">Авто: ≤ необычное</option><option value="rare">Авто: ≤ редкое</option>
-                </select>
-              </div>
-              <div class="panelBody items" id="itemList"></div>
-            </article>
-
-            <article class="panel camp" data-panel="camp">
-              <div class="panelHead"><h2>ЛАГЕРЬ</h2></div>
-              <div class="panelBody">
-                <div class="campCard"><div class="campIcon">⛺</div><div class="campInfo"><b>Полевой лазарет</b><span id="lazInfo">Ур. 0 · +0% HP героям</span></div><button id="lazBtn" class="buyBtn"><b>Улучшить</b><span>🪙 60</span></button></div>
-                <div class="campCard"><div class="campIcon">⛏</div><div class="campInfo"><b>Золотая жила</b><span id="mineInfo">Ур. 0 · ×1.00 золото</span></div><button id="mineBtn" class="buyBtn"><b>Улучшить</b><span>🪙 120</span></button></div>
-                <div class="prestige"><h3>💎 ПЕРЕРОЖДЕНИЕ</h3><p>Сброс прогресса, инвентаря и экипировки ради кристаллов. Каждый кристалл даёт <b>+12%</b> к урону, лечению и золоту навсегда.</p><div class="prestigeGain" id="prestGain">Доступно с волны 20</div><button id="prestBtn" class="bigBtn">Переродиться</button></div>
-                <div class="stats"><div><span>Убийств</span><b id="statKills">0</b></div><div><span>Боссов</span><b id="statBosses">0</b></div><div><span>Предметов</span><b id="statDrops">0</b></div><div><span>В бою</span><b id="statTime">0с</b></div></div>
-                <div class="logHead">ЖУРНАЛ</div><div class="log" id="log"></div>
-              </div>
-            </article>
-          </section>
-        </main>
-
-        <footer class="foot"><span id="saveDot">● автосохранение</span><span>Герои бьются автоматически · P — пауза · M — звук · H — справка</span><span class="conf">настройка: <b>config/*.js</b></span></footer>
-        <div id="toasts" class="toasts"></div><div id="modal" class="modal"></div>
-
-        <script src="config/balance.js"></script>
-        <script src="config/heroes.js"></script>
-        <script src="config/monsters.js"></script>
-        <script src="config/levels.js"></script>
-        <script src="config/items.js"></script>
-        <script src="js/core.js"></script>
-        <script src="js/audio.js"></script>
-        <script src="js/battle.js"></script>
-        <script src="js/ui.js"></script>
-        <script src="js/main.js"></script>
-        <script src="js/autoequip.js"></script>
-      </body>
-      </html>
+            <div class="stats">
+              <div><span>Убийств</span><b id="statKills">0</b></div>
+              <div><span>Боссов</span><b id="statBosses">0</b></div>
+              <div><span>Предметов</span><b id="statDrops">0</b></div>
+              <div><span>В бою</span><b id="statTime">0с</b></div>
+            </div>
+            <div class="logHead">ЖУРНАЛ</div>
+            <div class="log" id="log"></div>
+          </div>
+        </article>
+      </section>
+    </main>
+    <footer class="foot">
+      <span id="saveDot">● автосохранение</span
+      ><span
+        >Герои бьются автоматически · P — пауза · M — звук · H — справка</span
+      ><span class="conf">настройка: <b>config/*.js</b></span>
+    </footer>
+    <div id="toasts" class="toasts"></div>
+    <div id="modal" class="modal"></div>
+    <script src="config/balance.js"></script>
+    <script src="config/heroes.js"></script>
+    <script src="config/monsters.js"></script>
+    <script src="config/levels.js"></script>
+    <script src="config/items.js"></script>
+    <script src="js/core.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/battle.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/autoequip.js"></script>
+  </body>
+</html>
