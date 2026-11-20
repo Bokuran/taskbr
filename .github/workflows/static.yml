@@ -1,19 +1,15 @@
-# Название рабочего процесса
 name: Deploy static content to Pages
 
-# Условия запуска: при пуше в ветку main или вручную
 on:
   push:
     branches: ["main"]
   workflow_dispatch:
 
-# Права доступа, необходимые для развертывания на GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Разрешаем только одно одновременное развертывание
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -31,10 +27,11 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
         
+      # 👇 ЭТОТ ШАГ БЫЛ НЕПРАВИЛЬНЫМ / ОТСУТСТВОВАЛ
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Важно: точка означает, что мы берем все файлы из корневой папки (где лежит index.html)
+          # Точка означает, что мы берем все файлы из корневой папки (где лежит index.html)
           path: '.'
           
       - name: Deploy to GitHub Pages
