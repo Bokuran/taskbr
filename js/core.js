@@ -61,7 +61,11 @@
     else if(def.sprite?.frames)out=def.sprite.frames.map(r=>buildSprite(r,def.sprite.palette||{}));
     else{const col=def.color||"#8fa2cc",pal={h:U.shade(col,35),f:"#ffd9a8",a:col,b:U.shade(col,-55),w:"#f2f6ff",c:col,e:"#101322",m:col,d:U.shade(col,-60),y:"#ffd866"};out=[buildSprite(kind==="hero"?FB_HERO:(def.boss?FB_BOSS:FB_MOB),pal)]}
     spriteCache[key]=out;const sp=def.sprite;
-    if(sp?.src){const count=Math.max(1,sp.count||1),index=U.clamp(sp.index||0,0,count-1);loadImage(sp.src).then(img=>{const boxes=sp.region?processSheet(cropRegion(img,sp.region),1):processSheet(img,count);const box=boxes[sp.region?0:index];if(box&&box.ch>0&&box.cw/box.ch>=0.15){spriteCache[key]=[spriteFromBox(box,sp.pixelHeight)];E.emit("sprites",{id:def.id})}}).catch(()=>{})}
+    if(sp?.src){
+      const count=Math.max(1,sp.count||1),index=U.clamp(sp.index||0,0,count-1);
+      const apply=(img,region)=>{const boxes=region?processSheet(cropRegion(img,region),1):processSheet(img,count);const box=boxes[region?0:index];if(box&&box.ch>0&&box.cw/box.ch>=0.15){spriteCache[key]=[spriteFromBox(box,sp.pixelHeight)];E.emit("sprites",{id:def.id})}};
+      loadImage(sp.src).then(img=>apply(img,sp.region)).catch(()=>{if(sp.fb)loadImage(sp.fb.src).then(img2=>apply(img2,sp.fb.region)).catch(()=>{})});
+    }
     return out
   };
   const KEY="tbh_idle_equipment_v1";
@@ -76,7 +80,6 @@
   T.inParty=id=>S.party.includes(id);
   T.partyDefs=()=>C.heroes.filter(h=>S.party.includes(h.id));
   T.partyCap=CAP;
-  // Построение: позиция 1 (передняя) = танк (макс. HP), далее — ручной порядок S.order
   T.formation=()=>{const rec=T.partyDefs();if(!rec.length)return[];const tank=rec.reduce((a,b)=>a.baseHp>=b.baseHp?a:b);const others=rec.filter(h=>h.id!==tank.id);const inOrder=S.order.filter(id=>others.some(h=>h.id===id));const rest=others.filter(h=>!inOrder.includes(h.id)).map(h=>h.id);return[tank,...[...inOrder,...rest].map(id=>rec.find(h=>h.id===id))]};
   T.setOrder=arr=>{S.order=(arr||[]).filter(id=>S.heroes[id]?.rec);T.save();E.emit("party");E.emit("heroes")};
   T.toggleParty=id=>{const h=S.heroes[id];if(!h?.rec){E.emit("toast",{msg:"Сначала наймите героя",type:"info"});return false}const i=S.party.indexOf(id);if(i>=0){if(S.party.length<=1){E.emit("toast",{msg:"В отряде должен остаться хотя бы один герой",type:"info"});return false}S.party.splice(i,1);S.order=S.order.filter(x=>x!==id);E.emit("log",{msg:`🪑 ${heroDef(id).name} отправлен в резерв`,type:"info"})}else{if(S.party.length>=CAP()){E.emit("toast",{msg:`Отряд полон (${CAP()}) — уберите кого-то в резерв`,type:"info"});return false}S.party.push(id);E.emit("log",{msg:`⚔ ${heroDef(id).name} вступает в отряд`,type:"success"})}E.emit("heroes");E.emit("party");T.save();return true};
