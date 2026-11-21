@@ -3,7 +3,7 @@
   const canvas=document.getElementById("stage"),ctx=canvas.getContext("2d");
   let W=900,H=210,SC=4,dpr=1;const K=()=>SC/4,gy=()=>H-15,scaleOf=s=>s.img?(SC*16)/s.h:SC;
   const B=T.battleState={monsters:[],projs:[],parts:[],texts:[],beams:[],hs:{},state:"inter",t:.3,next:1,spawnLeft:0,spawnT:0,spawnInt:1,bossWave:false,boss:null,bossT:0,waveKills:0,waveTotal:0,time:0,advance:0,shake:{t:0,d:1,m:0}};
-  for(const h of C.heroes)B.hs[h.id]={id:h.id,def:h,x:80,cool:U.rand(.2,.8),lunge:0,home:80,hp:0,maxHp:0,dead:false,deadAge:0,deadX:null,hurt:0,healGlow:0};
+  for(const h of C.heroes)B.hs[h.id]={id:h.id,def:h,x:80,cool:U.rand(.2,.8),lunge:0,home:80,hp:0,maxHp:0,dead:false,deadAge:0,deadX:null,hurt:0,healGlow:0,sk:{a1:U.rand(3,6),a2:U.rand(6,10),mom:0,sharp:0,arcane:0},buffs:{}};
   const ZC={},REDUCED=matchMedia("(prefers-reduced-motion: reduce)"),zoneRGBCache={},bgCache={};
   function zoneRGB(z){let c=zoneRGBCache[z.id];if(!c)c=zoneRGBCache[z.id]={sky1:U.hex2rgb(z.colors.sky1),sky2:U.hex2rgb(z.colors.sky2),h1:U.hex2rgb(z.colors.hill1),h2:U.hex2rgb(z.colors.hill2),gr:U.hex2rgb(z.colors.ground)};return c}
   function cropToCanvas(im,r){const iw=im.naturalWidth||im.width,ih=im.naturalHeight||im.height,sx=Math.round(r[0]*iw),sy=Math.round(r[1]*ih),sw=Math.max(2,Math.round(r[2]*iw)),sh=Math.max(2,Math.round(r[3]*ih)),c=document.createElement("canvas");c.width=sw;c.height=sh;c.getContext("2d").drawImage(im,sx,sy,sw,sh,0,0,sw,sh);return c}
@@ -27,20 +27,109 @@
   const frontHero=()=>{let f=null;for(const h of livingHeroes()){const rt=B.hs[h.id];if(!f||rt.x>f.x)f=rt}return f};
   function banner(txt,cls=""){E.emit("banner",{txt,cls})}
   function syncHeroHp(){for(const hd of C.heroes){const hs=T.S.heroes[hd.id],h=B.hs[hd.id];if(!hs?.rec||!T.inParty(hd.id))continue;const st=T.derived.heroStats(hd.id),oldMax=h.maxHp||st.maxHp;h.maxHp=st.maxHp;if(h.dead)continue;if(h.hp<=0)h.hp=st.maxHp;else h.hp=Math.min(st.maxHp,h.hp+Math.max(0,st.maxHp-oldMax))}}
-  function hitHero(h,m){if(h.dead)return;const st=T.derived.heroStats(h.id),raw=Math.max(1,Math.ceil(m.dmg*(1-st.defPct/100))),cap=Math.ceil(h.maxHp*(m.boss?BAL.combat.bossHitCapPct:BAL.combat.normalHitCapPct)),dmg=Math.max(1,Math.min(raw,cap));h.hp-=dmg;h.hurt=.18;const s=T.getSprite(h.def,"hero")[0],sc=scaleOf(s);float("-"+U.fmt(dmg),h.x,gy()-s.h*sc-10,"#ff4d62");burst(h.x,gy()-s.h*sc*.5,"#ff4d62",5,70);shake(1.5,.12);E.emit("sfx","heroHit");if(h.hp<=0)killHero(h)}
+
+  /* ===== ПАССИВКИ ===== */
+  function heroPassiveDmgMult(h,hd){if(!h||!hd)return 1;let m=1;
+    if(hd.id==="paladin"&&h.hp<h.maxHp*0.30)m*=0.70;
+    if(h.buffs?.shieldT>0)m*=0.55;
+    return m}
+  function bossEvade(m){if(!m?.boss||m.def.id!=="shadow_king")return false;return Math.random()<0.30}
+  function bossArmorMult(m){if(!m?.boss)return 1;if(m.def.id==="crystal_titan")return m.buffs?.crystalShell>0?0.60:0.75;return 1}
+
+  function hitHero(h,m){if(h.dead)return;const st=T.derived.heroStats(h.id);
+    let raw=Math.max(1,Math.ceil(m.dmg*(1-st.defPct/100)));
+    raw*=heroPassiveDmgMult(h,h.def);
+    const cap=Math.ceil(h.maxHp*(m.boss?BAL.combat.bossHitCapPct:BAL.combat.normalHitCapPct));
+    let dmg=Math.max(1,Math.min(Math.ceil(raw),cap));
+    if(m.boss&&m.def.id==="shadow_king"&&h.buffs?.shadowMark>0)dmg=Math.ceil(dmg*1.18);
+    h.hp-=dmg;h.hurt=.18;
+    if(h.def.id==="monk")h.sk.mom=0; // сброс «Потока ударов» при получении урона
+    const s=T.getSprite(h.def,"hero")[0],sc=scaleOf(s);float("-"+U.fmt(dmg),h.x,gy()-s.h*sc-10,"#ff4d62");burst(h.x,gy()-s.h*sc*.5,"#ff4d62",5,70);shake(1.5,.12);E.emit("sfx","heroHit");if(h.hp<=0)killHero(h)}
   function killHero(h){h.hp=0;h.dead=true;h.deadAge=0;h.deadX=h.x;
-    burst(h.x,gy()-24*K(),"#ff4d62",18,120);
-    souls(h.x,gy()-10*K());
-    ring(h.x,gy()-20*K(),"#ff4d62",26*K());
+    burst(h.x,gy()-24*K(),"#ff4d62",18,120);souls(h.x,gy()-10*K());ring(h.x,gy()-20*K(),"#ff4d62",26*K());
     float("💀 погиб",h.x,gy()-52*K(),"#ff9aaa",true);
-    E.emit("log",{msg:`💀 ${h.def.name} пал в бою`,type:"danger"});E.emit("sfx","death");shake(3,.25)}
-  // самый раненый СОЮЗНИК кроме указанного (лекарь не должен зацикливаться на себе)
+    E.emit("log",{msg:`💀 ${h.def.name} пал в бою`,type:"danger"});E.emit("sfx","death");shake(3,.25);
+    const n=B.hs.necro;if(n&&!n.dead&&T.inParty("necro")){n.buffs.darkPact=8;n.sk.a1=Math.min(n.sk.a1,0.5);float("☠ Тёмный договор",n.x,gy()-58*K(),"#b06cff",true)}}
   function mostInjuredExcept(exId){let best=null,bestRatio=1;for(const hd of T.partyDefs()){if(hd.id===exId)continue;const h=B.hs[hd.id];if(h.dead||h.maxHp<=0)continue;const ratio=h.hp/h.maxHp;if(ratio<bestRatio-.001){bestRatio=ratio;best=h}}return bestRatio<.999?best:null}
   function applyHeal(h,amount,crit){if(h.dead)return;const before=h.hp;h.hp=Math.min(h.maxHp,h.hp+amount);const real=h.hp-before;h.healGlow=.3;const s=T.getSprite(h.def,"hero")[0],sc=scaleOf(s);float("+"+U.fmt(real),h.x,gy()-s.h*sc-10,"#78ff7a",crit);burst(h.x,gy()-s.h*sc*.5,"#78ff7a",8,80);E.emit("sfx","heal")}
+
+  /* ===== НАВЫКИ ГЕРОЕВ: кулдауны ===== */
+  const HERO_SKILLS={
+    paladin:{a1:{cd:14},a2:{cd:20}},
+    monk:{a1:{cd:10},a2:{cd:18}},
+    rogue:{a1:{cd:12},a2:{cd:16}},
+    archer:{a1:{cd:13},a2:{cd:16}},
+    mage:{a1:{cd:15},a2:{cd:19}},
+    necro:{a1:{cd:11},a2:{cd:18}}
+  };
+  /* ===== Метаданные навыков для интерфейса ===== */
+  T.skills={heroes:{
+    paladin:{passive:{icon:"🛡",name:"Железная воля",desc:"При HP<30% входящий урон −30%"},a1:{icon:"🛡",name:"Щит веры",cd:14,desc:"Всему отряду −45% урона на 4с"},a2:{icon:"✦",name:"Священный удар",cd:20,desc:"AoE 220% урона вокруг танка"}},
+    monk:{passive:{icon:"👊",name:"Поток ударов",desc:"Каждое попадание +3% урона (до +30%); сбрасывается при получении урона"},a1:{icon:"💨",name:"Шквал",cd:10,desc:"3 быстрых удара по 80%"},a2:{icon:"☯",name:"Внутренний фокус",cd:18,desc:"Лечит себя на 25% и +30% скор. атаки на 5с"}},
+    rogue:{passive:{icon:"🗡",name:"Казнь",desc:"Цели ниже 30% HP получают от разбойника +40% урона"},a1:{icon:"🌀",name:"Веер клинков",cd:12,desc:"Бьёт до 3 ближайших целей по 120%"},a2:{icon:"💀",name:"Смертельный удар",cd:16,desc:"300% урона, гарантированный крит"}},
+    archer:{passive:{icon:"🎯",name:"Меткий глаз",desc:"Каждый 3-й выстрел — гарантированный крит"},a1:{icon:"🏹",name:"Град стрел",cd:13,desc:"Урон всем монстрам на поле"},a2:{icon:"➤",name:"Пронзающий выстрел",cd:16,desc:"320% урона одной цели"}},
+    mage:{passive:{icon:"✦",name:"Аркановая мощь",desc:"Каждая 5-я атака усиленная ×1.5"},a1:{icon:"🔥",name:"Огненный шторм",cd:15,desc:"AoE 140% урона по группе"},a2:{icon:"❄",name:"Ледяная волна",cd:19,desc:"Урон всем + замедление на 5с"}},
+    necro:{passive:{icon:"☠",name:"Тёмный договор",desc:"Смерть союзника: +25% скорости на 8с"},a1:{icon:"✚",name:"Массовое исцеление",cd:11,desc:"Лечит весь отряд"},a2:{icon:"☠",name:"Проклятие",cd:18,desc:"Цель получает +30% урона на 6с"}}
+  }};
+
+  function heroSkillTick(hd,h,dt,st){
+    const kit=HERO_SKILLS[hd.id];if(!kit)return;
+    const fm=frontMonster();
+    for(const k of Object.keys(h.buffs||{}))if(typeof h.buffs[k]==="number"){h.buffs[k]-=dt;if(h.buffs[k]<=0)delete h.buffs[k]}
+    if(h.buffs?.haste>0)h.cool-=dt*0.30;
+    if(h.buffs?.darkPact>0)h.cool-=dt*0.25;
+    h.sk.a1-=dt;h.sk.a2-=dt;
+    if(h.sk.a1<=0&&fm){h.sk.a1=kit.a1.cd;
+      if(hd.id==="paladin"){for(const x of livingHeroes())B.hs[x.id].buffs.shieldT=4;ring(h.x,gy()-20*K(),"#ffd866",60*K());float("🛡 Щит веры",h.x,gy()-58*K(),"#ffd866",true);E.emit("sfx","heal")}
+      else if(hd.id==="monk"){for(let i=0;i<3;i++)Battle.damage(fm,Math.ceil(st.dmg*0.8),{crit:false,color:"#ff7a3d"});burst(fm.x,gy()-20*K(),"#ff7a3d",10,120);float("💨 Шквал",h.x,gy()-58*K(),"#ff7a3d",true);E.emit("sfx","hit")}
+      else if(hd.id==="rogue"){const list=[...B.monsters].filter(m=>!m.dead).sort((a,b)=>Math.abs(a.x-h.x)-Math.abs(b.x-h.x)).slice(0,3);for(const m of list)Battle.damage(m,Math.ceil(st.dmg*1.2),{crit:false,color:"#b06cff"});burst(h.x,gy()-20*K(),"#b06cff",12,140);float("🌀 Веер клинков",h.x,gy()-58*K(),"#b06cff",true);E.emit("sfx","hit")}
+      else if(hd.id==="archer"){for(const m of B.monsters)if(!m.dead)Battle.damage(m,Math.ceil(st.dmg*0.55),{crit:Math.random()<st.crit/100,color:"#f2eadb"});for(let i=0;i<8;i++)B.parts.push({x:W*U.rand(.35,.95),y:-10,vx:U.rand(-20,20),vy:U.rand(240,380),g:0,life:.7,max:.7,color:"#f2eadb",s:2});float("🏹 Град стрел",h.x,gy()-58*K(),"#f2eadb",true);E.emit("sfx","arrow")}
+      else if(hd.id==="mage"){const dmg=Math.ceil(st.dmg*1.4);for(const m of B.monsters){if(!m.dead&&Math.abs(m.x-fm.x)<260*K())Battle.damage(m,dmg,{crit:false,color:"#ff7a3d"})}burst(fm.x,gy()-20*K(),"#ff7a3d",22,160);shake(2,.2);float("🔥 Огненный шторм",h.x,gy()-58*K(),"#ff7a3d",true);E.emit("sfx","boom")}
+      else if(hd.id==="necro"){const heal=Math.ceil(st.dmg*1.6);for(const x of livingHeroes()){applyHeal(B.hs[x.id],heal,false);burst(B.hs[x.id].x,gy()-20*K(),"#78ff7a",6,80)}ring(h.x,gy()-20*K(),"#78ff7a",80*K());float("✚ Массовое исцеление",h.x,gy()-58*K(),"#78ff7a",true)}
+    }
+    if(h.sk.a2<=0&&fm){h.sk.a2=kit.a2.cd;
+      if(hd.id==="paladin"){const dmg=Math.ceil(st.dmg*2.2);for(const m of B.monsters){if(!m.dead&&Math.abs(m.x-h.x)<140*K())Battle.damage(m,dmg,{crit:true,color:"#ffd866"})}ring(h.x,gy()-20*K(),"#ffd866",140*K());burst(h.x,gy()-20*K(),"#ffd866",26,180);shake(3,.25);float("✦ Священный удар",h.x,gy()-58*K(),"#ffd866",true)}
+      else if(hd.id==="monk"){applyHeal(h,Math.ceil(h.maxHp*0.25),false);h.buffs.haste=5;ring(h.x,gy()-20*K(),"#78ff7a",40*K());float("☯ Внутренний фокус",h.x,gy()-58*K(),"#78ff7a",true)}
+      else if(hd.id==="rogue"){Battle.damage(fm,Math.ceil(st.dmg*3.0),{crit:true,color:"#ff4d62"});burst(fm.x,gy()-20*K(),"#ff4d62",16,160);float("💀 Смертельный удар",h.x,gy()-58*K(),"#ff4d62",true)}
+      else if(hd.id==="archer"){Battle.damage(fm,Math.ceil(st.dmg*3.2),{crit:true,color:"#f2eadb"});B.projs.push({x:h.x+12*K(),y:gy()-40*K(),type:"arrow",color:"#ffd866",target:fm,dmg:0,crit:false,splash:0,done:false,piercing:true});float("➤ Пронзающий",h.x,gy()-58*K(),"#ffd866",true)}
+      else if(hd.id==="mage"){const dmg=Math.ceil(st.dmg*1.1);for(const m of B.monsters){if(!m.dead){Battle.damage(m,dmg,{crit:false,color:"#38dfff"});m.buffs=m.buffs||{};m.buffs.chilled=5;m.baseSpd=m.baseSpd||m.spd;m.spd=m.baseSpd*0.45}}burst(W*0.55,gy()-20*K(),"#38dfff",24,180);float("❄ Ледяная волна",h.x,gy()-58*K(),"#38dfff",true)}
+      else if(hd.id==="necro"){const t=fm;t.buffs=t.buffs||{};t.buffs.cursed=6;burst(t.x,gy()-20*K(),"#b06cff",18,140);float("☠ Проклятие",t.x,gy()-58*K(),"#b06cff",true);E.emit("sfx","fire")}
+    }
+  }
+
+  /* ===== НАВЫКИ БОССОВ ===== */
+  const BOSS_SKILLS={
+    crystal_titan:{a1:{cd:11},a2:{cd:22,hpBelow:0.55}},
+    flame_lord:{a1:{cd:10},a2:{cd:18,hpBelow:0.45}},
+    shadow_king:{a1:{cd:12},a2:{cd:20,hpBelow:0.6}}
+  };
+  function bossSkillTick(m,dt){
+    if(!m||!m.boss||m.dead)return;const kit=BOSS_SKILLS[m.def.id];if(!kit)return;
+    m.sk=m.sk||{a1:U.rand(4,kit.a1.cd),a2:U.rand(6,kit.a2.cd)};
+    m.buffs=m.buffs||{};
+    for(const k of Object.keys(m.buffs))if(typeof m.buffs[k]==="number"){m.buffs[k]-=dt;if(m.buffs[k]<=0)delete m.buffs[k]}
+    if(m.def.id==="flame_lord"){m._aura=(m._aura||0)+dt;if(m._aura>=2){m._aura=0;const fh=frontHero();if(fh){const dmg=Math.max(2,Math.ceil(m.dmg*0.35));fh.hp-=dmg;fh.hurt=.15;float("🔥 -"+U.fmt(dmg),fh.x,gy()-50*K(),"#ff7a3d");burst(fh.x,gy()-30*K(),"#ff7a3d",6,60);if(fh.hp<=0)killHero(fh)}}}
+    if(m.buffs.chilled==null&&m.baseSpd){m.spd=m.baseSpd;m.baseSpd=null}
+    const hpPct=m.hp/m.maxHp;
+    m.sk.a1-=dt;if(m.sk.a1<=0){m.sk.a1=kit.a1.cd;
+      if(m.def.id==="crystal_titan"){for(const x of livingHeroes()){const h=B.hs[x.id];const dmg=Math.max(2,Math.ceil(m.dmg*0.65));h.hp-=dmg;h.hurt=.2;float("🗡 -"+U.fmt(dmg),h.x,gy()-50*K(),"#38dfff");burst(h.x,gy()-30*K(),"#38dfff",5,70);if(h.hp<=0)killHero(h)}shake(2,.2);float("❄ Ледяной шип",m.x,gy()-70*K(),"#38dfff",true)}
+      else if(m.def.id==="flame_lord"){for(const x of livingHeroes()){const h=B.hs[x.id];const dmg=Math.max(2,Math.ceil(m.dmg*0.7));h.hp-=dmg;h.hurt=.2;float("🔥 -"+U.fmt(dmg),h.x,gy()-50*K(),"#ff7a3d");burst(h.x,gy()-30*K(),"#ff7a3d",8,80);if(h.hp<=0)killHero(h)}for(let i=0;i<14;i++)B.parts.push({x:U.rand(W*0.1,W*0.9),y:-10,vx:U.rand(-30,30),vy:U.rand(260,420),g:200,life:.8,max:.8,color:"#ff7a3d",s:3});shake(3,.3);float("☄ Огненный дождь",m.x,gy()-70*K(),"#ff7a3d",true)}
+      else{B.advance=Math.max(0,B.advance-140*K());for(const x of livingHeroes()){const h=B.hs[x.id];const dmg=Math.max(2,Math.ceil(m.dmg*0.5));h.hp-=dmg;h.hurt=.2;h.buffs=h.buffs||{};h.buffs.shadowMark=5;float("👁 -"+U.fmt(dmg),h.x,gy()-50*K(),"#b06cff");if(h.hp<=0)killHero(h)}burst(m.x,gy()-30*K(),"#b06cff",22,180);shake(3,.3);float("🌑 Тёмный импульс",m.x,gy()-70*K(),"#b06cff",true)}
+    }
+    m.sk.a2-=dt;if(m.sk.a2<=0&&hpPct<=kit.a2.hpBelow){m.sk.a2=kit.a2.cd;
+      if(m.def.id==="crystal_titan"){for(const x of livingHeroes()){const h=B.hs[x.id];const dmg=Math.max(2,Math.ceil(m.dmg*1.1));h.hp-=dmg;h.hurt=.25;float("💎 -"+U.fmt(dmg),h.x,gy()-50*K(),"#38dfff");burst(h.x,gy()-30*K(),"#38dfff",10,90);if(h.hp<=0)killHero(h)}m.buffs.crystalShell=6;ring(m.x,gy()-30*K(),"#38dfff",120*K());shake(5,.4);float("💎 КРИСТАЛЛИЧЕСКИЙ ВЗРЫВ",m.x,gy()-80*K(),"#38dfff",true)}
+      else if(m.def.id==="flame_lord"){m.buffs.rage=6;m.atkMult=1.6;m.baseSpd=m.baseSpd||m.spd;m.spd=m.baseSpd*1.5;burst(m.x,gy()-30*K(),"#ff7a3d",30,200);shake(4,.35);float("🔥 ЯРОСТЬ",m.x,gy()-80*K(),"#ff4d62",true)}
+      else{const def=C.monsters.shadow_wraith;for(let i=0;i<2;i++){const hp=Math.ceil(T.waves.enemyHp(T.S.wave,false,def)*0.8);B.monsters.push({def,boss:false,hp,maxHp:hp,x:m.x+U.rand(-30,30),slot:(i+3)%6,jit:0,spd:(BAL.enemy.speedBase+8)*K()*(def.speedMult||1)*2.5,dmg:Math.max(1,Math.ceil(Math.pow(hp,BAL.combat.monsterDmgPow)*BAL.combat.monsterDmgScale)),atkT:U.rand(.8,1.4),flash:0,lunge:0,dead:false,deathT:0,seed:U.rand(6.28),flying:true,sk:null,buffs:{}})}burst(m.x,gy()-30*K(),"#b06cff",24,180);shake(3,.3);float("👥 ПРИЗЫВ ТЕНЕЙ",m.x,gy()-80*K(),"#b06cff",true)}
+    }
+    if(m.def.id==="flame_lord"&&!m.buffs.rage&&m.atkMult){m.atkMult=1;if(m.baseSpd){m.spd=m.baseSpd;m.baseSpd=null}}
+  }
+
   const Battle=T.battle={
     init(){setZoneInstant();syncHeroHp()},
     resize(){const wrap=document.getElementById("stageWrap");W=Math.max(280,wrap.clientWidth);H=Math.max(120,wrap.clientHeight);dpr=Math.min(2,devicePixelRatio||1);canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);SC=W<700?3:W<1100?4:5},
-    startWave(w,opt={}){const S=T.S,prevZone=T.waves.zoneFor(S.wave).zone.id;S.wave=w;B.monsters=[];B.projs=[];B.beams=[];B.boss=null;B.bossWave=T.waves.isBoss(w);B.waveTotal=T.waves.count(w);B.spawnLeft=B.waveTotal;B.waveKills=0;B.spawnInt=T.waves.spawnInt(w);B.spawnT=.35;B.state="fight";B.bossT=BAL.boss.timer;B.advance=0;for(const hd of C.heroes){const hs=S.heroes[hd.id],h=B.hs[hd.id];if(!hs?.rec||!T.inParty(hd.id))continue;const st=T.derived.heroStats(hd.id);h.maxHp=st.maxHp;h.hp=st.maxHp;h.dead=false;h.deadAge=0;h.deadX=null;h.hurt=0;h.healGlow=0;h.cool=U.rand(.1,.6);h.x=h.home}const z=T.waves.zoneFor(w);zoneBg(z.zone);if(B.bossWave)banner("👑 "+T.waves.bossDef(w).name,"boss");else if(!opt.silent)banner("ВОЛНА "+w);if(z.zone.id!==prevZone)E.emit("toast",{msg:`${z.zone.icon||"🗺"} Новая зона: ${z.zone.name}`,type:"info"});E.emit("wave",{wave:w,boss:B.bossWave})},
+    startWave(w,opt={}){const S=T.S,prevZone=T.waves.zoneFor(S.wave).zone.id;S.wave=w;B.monsters=[];B.projs=[];B.beams=[];B.boss=null;B.bossWave=T.waves.isBoss(w);B.waveTotal=T.waves.count(w);B.spawnLeft=B.waveTotal;B.waveKills=0;B.spawnInt=T.waves.spawnInt(w);B.spawnT=.35;B.state="fight";B.bossT=BAL.boss.timer;B.advance=0;
+      for(const hd of C.heroes){const hs=S.heroes[hd.id],h=B.hs[hd.id];if(!hs?.rec||!T.inParty(hd.id))continue;const st=T.derived.heroStats(hd.id);h.maxHp=st.maxHp;h.hp=st.maxHp;h.dead=false;h.deadAge=0;h.deadX=null;h.hurt=0;h.healGlow=0;h.cool=U.rand(.1,.6);h.x=h.home;h.sk={a1:U.rand(4,8),a2:U.rand(8,14),mom:0,sharp:0,arcane:0};h.buffs={}}
+      const z=T.waves.zoneFor(w);zoneBg(z.zone);if(B.bossWave)banner("👑 "+T.waves.bossDef(w).name,"boss");else if(!opt.silent)banner("ВОЛНА "+w);if(z.zone.id!==prevZone)E.emit("toast",{msg:`${z.zone.icon||"🗺"} Новая зона: ${z.zone.name}`,type:"info"});E.emit("wave",{wave:w,boss:B.bossWave})},
     update(dt){const S=T.S;B.time+=dt;S.stats.play+=dt;if(B.state==="inter"){B.t-=dt;if(B.t<=0)Battle.startWave(B.next)}else{if(B.spawnLeft>0){B.spawnT-=dt;if(B.spawnT<=0){Battle.spawn(B.bossWave);B.spawnLeft--;B.spawnT=B.spawnInt}}if(B.bossWave&&B.boss&&!B.boss.dead){B.bossT-=dt;if(B.bossT<=0){Battle.retreat("⏱ Босс не повержен за "+BAL.boss.timer+"с!","БОСС ВЫСТОЯЛ");return}}if(B.spawnLeft===0&&B.monsters.every(m=>m.dead))Battle.clearWave()}
       const k=K(),F=T.formation(),n=F.length,STEP=44*k,baseX=80*k;
       const homeBase=i=>baseX+(n-1-i)*STEP;
@@ -49,19 +138,26 @@
       const targetA=fm?U.clamp(fm.x-40*k-homeBase(0),0,maxA):B.advance;
       const march=150*k;
       B.advance+=U.clamp(targetA-B.advance,-march*dt,march*dt);
-      for(const m of B.monsters){if(m.dead){m.deathT-=dt;continue}m.flash=Math.max(0,m.flash-dt);m.lunge=Math.max(0,m.lunge-dt*4);const target=frontHero();if(!target)continue;const stopDist=(46+m.slot*18)*k,desired=target.x+stopDist;if(m.x>desired+2)m.x-=m.spd*dt;else{m.x=Math.min(m.x,desired);m.atkT-=dt;if(m.atkT<=0){m.atkT=m.boss?BAL.combat.bossAtkInt:BAL.combat.monsterAtkInt;m.lunge=1;hitHero(target,m)}}}
+      for(const m of B.monsters){if(m.dead){m.deathT-=dt;continue}
+        m.flash=Math.max(0,m.flash-dt);m.lunge=Math.max(0,m.lunge-dt*4);
+        if(m.buffs)for(const kk of Object.keys(m.buffs))if(typeof m.buffs[kk]==="number"){m.buffs[kk]-=dt;if(m.buffs[kk]<=0)delete m.buffs[kk]}
+        if(m.buffs?.chilled==null&&m.baseSpd){m.spd=m.baseSpd;m.baseSpd=null}
+        if(m.boss)bossSkillTick(m,dt);
+        const target=frontHero();if(!target)continue;const stopDist=(46+m.slot*18)*k,desired=target.x+stopDist;
+        if(m.x>desired+2)m.x-=m.spd*dt;
+        else{m.x=Math.min(m.x,desired);m.atkT-=dt;if(m.atkT<=0){m.atkT=m.boss?BAL.combat.bossAtkInt:BAL.combat.monsterAtkInt;m.lunge=1;const atkM=m.atkMult||1;hitHero(target,{...m,dmg:Math.ceil(m.dmg*atkM)})}}}
       B.monsters=B.monsters.filter(m=>!m.dead||m.deathT>0);if(n&&livingHeroes().length===0){Battle.retreat("💀 Отряд полностью пал!","ОТРЯД ПАЛ");return}
       for(const hd of C.heroes){const hs=S.heroes[hd.id];if(!hs?.rec||!T.inParty(hd.id))continue;const fi=F.findIndex(x=>x.id===hd.id);if(fi<0)continue;const h=B.hs[hd.id];h.lunge=Math.max(0,h.lunge-dt*5);h.hurt=Math.max(0,h.hurt-dt);h.healGlow=Math.max(0,h.healGlow-dt);h.home=homeBase(fi)+B.advance;
         if(h.dead){h.deadAge=(h.deadAge||0)+dt;continue}
         h.x=h.home;
         const st=T.derived.heroStats(hd.id);h.maxHp=st.maxHp;h.hp=Math.min(h.maxHp,h.hp+st.regen*dt);
+        heroSkillTick(hd,h,dt,st);
         if(hd.role==="healer"){
           h.cool-=dt;
           if(h.cool<=0){
-            // лечим других раненых; себя — только ниже 60% HP, иначе бьём врага (нет бесконечного самолечения)
             const ally=mostInjuredExcept(hd.id)||(h.hp/h.maxHp<0.6?h:null);
-            if(ally){h.cool=1/st.speed;h.lunge=1;const crit=Math.random()*100<st.crit,amount=st.dmg*(crit?st.critDmg/100:1),spr=T.getSprite(hd,"hero")[0],sc=scaleOf(spr);B.projs.push({type:"heal",x:h.x+10*k,y:gy()-spr.h*sc*.6,targetHero:ally,amount,crit,color:hd.projColor||"#78ff7a",done:false})}
-            else if(fm){h.cool=1/st.speed;h.lunge=1;const crit=Math.random()*100<st.crit,dmg=st.dmg*(crit?st.critDmg/100:1),spr=T.getSprite(hd,"hero")[0],sc=scaleOf(spr);B.projs.push({x:h.x+12*k,y:gy()-spr.h*sc*.58,type:hd.projectile||"orb",color:hd.projColor||"#78ff7a",target:fm,dmg,crit,splash:hd.splash||0,done:false});E.emit("sfx","fire")}
+            if(ally){h.cool=1/st.speed;h.lunge=1;const crit=Math.random()*100<st.crit,amount=st.dmg*(crit?st.critDmg/100:1)*(h.buffs?.arcane?1.5:1),spr=T.getSprite(hd,"hero")[0],sc=scaleOf(spr);B.projs.push({type:"heal",x:h.x+10*k,y:gy()-spr.h*sc*.6,targetHero:ally,amount,crit,color:hd.projColor||"#78ff7a",done:false});if(h.buffs?.arcane)delete h.buffs.arcane}
+            else if(fm){h.cool=1/st.speed;h.lunge=1;const crit=Math.random()*100<st.crit,dmg=st.dmg*(crit?st.critDmg/100:1)*(h.buffs?.arcane?1.5:1),spr=T.getSprite(hd,"hero")[0],sc=scaleOf(spr);B.projs.push({x:h.x+12*k,y:gy()-spr.h*sc*.58,type:hd.projectile||"orb",color:hd.projColor||"#78ff7a",target:fm,dmg,crit,splash:hd.splash||0,done:false});E.emit("sfx","fire");if(h.buffs?.arcane)delete h.buffs.arcane}
           }
         }
         else{
@@ -69,16 +165,40 @@
           const reach=(176+fi*44)*k;
           h.cool-=dt;
           const inRange=hd.range==="melee"?(target?Math.abs(target.x-h.x)<=reach:false):true;
-          if(h.cool<=0&&target&&inRange){h.cool=1/st.speed;h.lunge=1;const crit=Math.random()*100<st.crit,dmg=st.dmg*(crit?st.critDmg/100:1);if(hd.range==="melee"){Battle.damage(target,dmg,{crit});ring(target.x,gy()-20*k,crit?"#ff7a3d":"#f2f6ff",18*k);burst(target.x,gy()-20*k,"#f2f6ff",4,65);E.emit("sfx","hit")}else{const spr=T.getSprite(hd,"hero")[0],sc=scaleOf(spr);B.projs.push({x:h.x+12*k,y:gy()-spr.h*sc*.58,type:hd.projectile||"orb",color:hd.projColor||hd.color||"#38dfff",target,dmg,crit,splash:hd.splash||0,done:false});E.emit("sfx",hd.projectile==="fire"?"fire":hd.projectile==="arrow"?"arrow":hd.projectile==="hammer"?"hammer":"fire")}}}
+          if(h.cool<=0&&target&&inRange){
+            h.cool=1/st.speed;h.lunge=1;
+            h.sk.sharp=(h.sk.sharp||0)+1;
+            const sharpCrit=hd.id==="archer"&&h.sk.sharp>=3;
+            if(sharpCrit)h.sk.sharp=0;
+            if(hd.id==="mage"){h.sk.arcane=(h.sk.arcane||0)+1;if(h.sk.arcane>=5){h.sk.arcane=0;h.buffs=h.buffs||{};h.buffs.arcane=1}}
+            let dmgMult=1;
+            if(hd.id==="monk")dmgMult*=1+0.03*Math.min(10,h.sk.mom||0);
+            if(hd.id==="rogue"&&target.hp/target.maxHp<0.3)dmgMult*=1.4;
+            const crit=sharpCrit||Math.random()*100<st.crit;
+            const arcaneMult=(h.buffs?.arcane)?1.5:1;
+            const dmg=Math.ceil(st.dmg*(crit?st.critDmg/100:1)*arcaneMult*dmgMult);
+            if(hd.range==="melee"){Battle.damage(target,dmg,{crit});if(hd.id==="monk")h.sk.mom=(h.sk.mom||0)+1;ring(target.x,gy()-20*k,crit?"#ff7a3d":"#f2f6ff",18*k);burst(target.x,gy()-20*k,"#f2f6ff",4,65);E.emit("sfx","hit")}
+            else{const spr=T.getSprite(hd,"hero")[0],sc=scaleOf(spr);B.projs.push({x:h.x+12*k,y:gy()-spr.h*sc*.58,type:hd.projectile||"orb",color:hd.projColor||hd.color||"#38dfff",target,dmg,crit,splash:hd.splash||0,done:false});E.emit("sfx",hd.projectile==="fire"?"fire":hd.projectile==="arrow"?"arrow":hd.projectile==="hammer"?"hammer":"fire")}}
+        }
       }
-      for(const p of B.projs){if(p.type==="heal"){const th=p.targetHero;if(!th||th.dead){p.done=true;continue}const spr=T.getSprite(th.def,"hero")[0],sc=scaleOf(spr),tx=th.x,ty=gy()-spr.h*sc*.55,dx=tx-p.x,dy=ty-p.y,dist=Math.hypot(dx,dy),spd=330*k;if(dist<10*k){applyHeal(th,p.amount,p.crit);p.done=true;continue}p.x+=dx/dist*spd*dt;p.y+=dy/dist*spd*dt;if(Math.random()<dt*30)B.parts.push({x:p.x,y:p.y,vx:U.rand(-12,12),vy:U.rand(-12,12),g:0,life:.25,max:.25,color:p.color,s:2});continue}if(!p.target||p.target.dead){p.target=nearestMonster(p.x)||frontMonster();if(!p.target){p.done=true;continue}}const frames=T.getSprite(p.target.def,"mob"),ms=scaleOf(frames[0]),sh=frames[0].h*ms,tx=p.target.x,ty=gy()-sh*.52-(p.target.flying?20*k:0),dx=tx-p.x,dy=ty-p.y,dist=Math.hypot(dx,dy),spd=390*k;if(dist<11*k){Battle.damage(p.target,p.dmg,{crit:p.crit});if(p.splash){for(const m of B.monsters)if(!m.dead&&m!==p.target&&Math.abs(m.x-tx)<p.splash*k)Battle.damage(m,p.dmg*.6,{color:"#ff7a3d"});burst(tx,ty,p.color,13,120);E.emit("sfx","boom")}else burst(tx,ty,p.color,4,65);p.done=true;continue}p.x+=dx/dist*spd*dt;p.y+=dy/dist*spd*dt;if(p.type==="fire"&&Math.random()<dt*38)B.parts.push({x:p.x,y:p.y,vx:U.rand(-14,14),vy:U.rand(-14,14),g:0,life:.25,max:.25,color:p.color,s:2})}
+      for(const p of B.projs){if(p.type==="heal"){const th=p.targetHero;if(!th||th.dead){p.done=true;continue}const spr=T.getSprite(th.def,"hero")[0],sc=scaleOf(spr),tx=th.x,ty=gy()-spr.h*sc*.55,dx=tx-p.x,dy=ty-p.y,dist=Math.hypot(dx,dy),spd=330*k;if(dist<10*k){applyHeal(th,p.amount,p.crit);p.done=true;continue}p.x+=dx/dist*spd*dt;p.y+=dy/dist*spd*dt;if(Math.random()<dt*30)B.parts.push({x:p.x,y:p.y,vx:U.rand(-12,12),vy:U.rand(-12,12),g:0,life:.25,max:.25,color:p.color,s:2});continue}if(!p.target||p.target.dead){p.target=nearestMonster(p.x)||frontMonster();if(!p.target){p.done=true;continue}}const frames=T.getSprite(p.target.def,"mob"),ms=scaleOf(frames[0]),sh=frames[0].h*ms,tx=p.target.x,ty=gy()-sh*.52-(p.target.flying?20*k:0),dx=tx-p.x,dy=ty-p.y,dist=Math.hypot(dx,dy),spd=390*k;if(dist<11*k){if(!p.piercing)Battle.damage(p.target,p.dmg,{crit:p.crit});if(p.splash){for(const m of B.monsters)if(!m.dead&&m!==p.target&&Math.abs(m.x-tx)<p.splash*k)Battle.damage(m,p.dmg*.6,{color:"#ff7a3d"});burst(tx,ty,p.color,13,120);E.emit("sfx","boom")}else burst(tx,ty,p.color,4,65);p.done=true;continue}p.x+=dx/dist*spd*dt;p.y+=dy/dist*spd*dt;if(p.type==="fire"&&Math.random()<dt*38)B.parts.push({x:p.x,y:p.y,vx:U.rand(-14,14),vy:U.rand(-14,14),g:0,life:.25,max:.25,color:p.color,s:2})}
       B.projs=B.projs.filter(p=>!p.done);for(const p of B.parts){p.life-=dt;if(p.coin&&p.life<.45){p.vx=U.lerp(p.vx,(W-20-p.x)*4,.25);p.vy=U.lerp(p.vy,(8-p.y)*4,.25)}else p.vy+=(p.g||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}B.parts=B.parts.filter(p=>p.life>0);for(const t of B.texts){t.life-=dt;t.y-=30*dt}B.texts=B.texts.filter(t=>t.life>0);for(const b of B.beams)b.t+=dt;B.beams=B.beams.filter(b=>b.t<b.dur);B.shake.t=Math.max(0,B.shake.t-dt);const zNow=T.waves.zoneFor(S.wave).zone;if(!zoneBg(zNow))lerpZone(dt)},
-    spawn(boss){const S=T.S,k=K(),def=boss?T.waves.bossDef(S.wave):U.pick(T.waves.mobPool(S.wave)),hp=T.waves.enemyHp(S.wave,boss,def),m={def,boss,hp,maxHp:hp,x:W+45,slot:(B.waveTotal-B.spawnLeft)%6,jit:U.rand(0,10),spd:boss?90*k*(def.speedMult||1):(BAL.enemy.speedBase+U.rand(0,12)+Math.min(BAL.enemy.speedMaxBonus,S.wave*BAL.enemy.speedPerWave))*k*(def.speedMult||1)*2.5,dmg:Math.max(1,Math.ceil(Math.pow(hp,BAL.combat.monsterDmgPow)*BAL.combat.monsterDmgScale*(boss?BAL.combat.bossDmgMult:1))),atkT:U.rand(.8,1.4),flash:0,lunge:0,dead:false,deathT:0,seed:U.rand(6.28),flying:!!def.flying};B.monsters.push(m);if(boss){B.boss=m;shake(3,.3);E.emit("sfx","boss")}},
-    damage(m,dmg,o={}){if(m.dead)return;m.hp-=dmg;m.flash=.12;const frames=T.getSprite(m.def,"mob"),ms=scaleOf(frames[0]),sh=frames[0].h*ms;float(U.fmt(dmg)+(o.crit?"!":""),m.x+U.rand(-6,6),gy()-sh-(m.flying?20*K():0)-5,o.color||(o.crit?"#ff7a3d":"#f2eadb"),o.crit);if(m.hp<=0)Battle.kill(m)},
+    spawn(boss){const S=T.S,k=K(),def=boss?T.waves.bossDef(S.wave):U.pick(T.waves.mobPool(S.wave)),hp=T.waves.enemyHp(S.wave,boss,def),finalHp=boss?Math.ceil(hp*2.8):hp,
+      m={def,boss,hp:finalHp,maxHp:finalHp,x:W+45,slot:(B.waveTotal-B.spawnLeft)%6,jit:U.rand(0,10),
+        spd:boss?90*k*(def.speedMult||1):(BAL.enemy.speedBase+U.rand(0,12)+Math.min(BAL.enemy.speedMaxBonus,S.wave*BAL.enemy.speedPerWave))*k*(def.speedMult||1)*2.5,
+        dmg:Math.max(1,Math.ceil(Math.pow(finalHp,BAL.combat.monsterDmgPow)*BAL.combat.monsterDmgScale*(boss?BAL.combat.bossDmgMult:1))),
+        atkT:U.rand(.8,1.4),flash:0,lunge:0,dead:false,deathT:0,seed:U.rand(6.28),flying:!!def.flying,
+        sk:boss?{a1:U.rand(4,8),a2:U.rand(10,16)}:null,buffs:{},atkMult:1};
+      B.monsters.push(m);if(boss){B.boss=m;shake(3,.3);E.emit("sfx","boss")}},
+    damage(m,dmg,o={}){if(m.dead)return;
+      if(bossEvade(m)){float("ПРОМАХ",m.x+U.rand(-6,6),gy()-50,"#b06cff",true);return}
+      dmg=Math.ceil(dmg*bossArmorMult(m));
+      if(m.buffs?.cursed>0)dmg=Math.ceil(dmg*1.3);
+      m.hp-=dmg;m.flash=.12;const frames=T.getSprite(m.def,"mob"),ms=scaleOf(frames[0]),sh=frames[0].h*ms;float(U.fmt(dmg)+(o.crit?"!":""),m.x+U.rand(-6,6),gy()-sh-(m.flying?20*K():0)-5,o.color||(o.crit?"#ff7a3d":"#f2eadb"),o.crit);if(m.hp<=0)Battle.kill(m)},
     kill(m){const S=T.S;m.dead=true;m.deathT=.25;T.econ.addGold(T.waves.enemyGold(S.wave,m.boss,m.def),{x:m.x,y:gy()-24});burst(m.x,gy()-18*K(),m.boss?"#ff4d62":m.def.color||"#78ff7a",m.boss?30:10,m.boss?150:100);coins(m.x,gy()-24,3);E.emit("sfx","coin");S.stats.kills++;B.waveKills++;T.items.maybeDrop(S.wave,m.boss,m.x,gy()-30,m.def.name);if(m.boss){S.stats.bosses++;B.boss=null;banner("БОСС ПОВЕРЖЕН!","gold");shake(6,.42);E.emit("sfx","bossdie");E.emit("log",{msg:"👑 Повержен "+m.def.name+" (волна "+S.wave+")",type:"boss"});if(S.wave===T.waves.victoryWave()&&!S.victory){S.victory=true;T.save();E.emit("victory")}}},
     clearWave(){const S=T.S,w=S.wave,bonus=Math.ceil(T.waves.enemyGold(w,false,{goldMult:1})*(BAL.economy.waveBonusMult+B.waveTotal*.3)*(B.bossWave?2:1));T.econ.addGold(bonus,{x:W/2,y:H/2});E.emit("sfx","wave");S.maxWave=Math.max(S.maxWave,w+1);B.next=S.settings.auto?w+1:w;B.state="inter";B.t=1.35},
-    retreat(msg,bannerTxt){const S=T.S,back=T.waves.retreatWave(S.wave);E.emit("sfx","fail");E.emit("hurt");banner(bannerTxt,"boss");E.emit("toast",{msg:msg+" Отступление на волну "+back+".",type:"danger"});E.emit("log",{msg,type:"danger"});B.advance=0;for(const hd of C.heroes){const hs=S.heroes[hd.id],h=B.hs[hd.id];if(!hs?.rec||!T.inParty(hd.id))continue;const st=T.derived.heroStats(hd.id);h.maxHp=st.maxHp;h.hp=st.maxHp;h.dead=false;h.deadAge=0;h.deadX=null;h.x=h.home}B.monsters=[];B.projs=[];B.beams=[];B.boss=null;B.state="inter";B.t=2;B.next=back},
-    resetVisuals(){B.monsters=[];B.projs=[];B.parts=[];B.texts=[];B.beams=[];B.boss=null;B.state="inter";B.t=.5;B.next=1;B.advance=0;for(const hd of C.heroes){const h=B.hs[hd.id];h.hp=0;h.maxHp=0;h.dead=false;h.deadAge=0;h.deadX=null}},
+    retreat(msg,bannerTxt){const S=T.S,back=T.waves.retreatWave(S.wave);E.emit("sfx","fail");E.emit("hurt");banner(bannerTxt,"boss");E.emit("toast",{msg:msg+" Отступление на волну "+back+".",type:"danger"});E.emit("log",{msg,type:"danger"});B.advance=0;for(const hd of C.heroes){const hs=S.heroes[hd.id],h=B.hs[hd.id];if(!hs?.rec||!T.inParty(hd.id))continue;const st=T.derived.heroStats(hd.id);h.maxHp=st.maxHp;h.hp=st.maxHp;h.dead=false;h.deadAge=0;h.deadX=null;h.x=h.home;h.buffs={}}B.monsters=[];B.projs=[];B.beams=[];B.boss=null;B.state="inter";B.t=2;B.next=back},
+    resetVisuals(){B.monsters=[];B.projs=[];B.parts=[];B.texts=[];B.beams=[];B.boss=null;B.state="inter";B.t=.5;B.next=1;B.advance=0;for(const hd of C.heroes){const h=B.hs[hd.id];h.hp=0;h.maxHp=0;h.dead=false;h.deadAge=0;h.deadX=null;h.buffs={}}},
     render(){ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);if(B.shake.t>0){const f=B.shake.t/B.shake.d;ctx.translate(U.rand(-1,1)*B.shake.m*f,U.rand(-1,1)*B.shake.m*f)}const k=K(),G=gy(),z=T.waves.zoneFor(T.S.wave).zone,bgImg=zoneBg(z);
       if(bgImg){const iw=bgImg.width,ih=bgImg.height,sc=Math.max(W/iw,H/ih)*1.04,dw=iw*sc,dh=ih*sc;ctx.drawImage(bgImg,(W-dw)/2,(H-dh)/2,dw,dh);ctx.fillStyle="rgba(6,4,12,.18)";ctx.fillRect(0,0,W,H)}
       else{const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,U.rgb(ZC.sky1));g.addColorStop(1,U.rgb(ZC.sky2));ctx.fillStyle=g;ctx.fillRect(-8,-8,W+16,H+16);if(z.stars){for(const s of stars){ctx.globalAlpha=.25+.6*Math.abs(Math.sin(B.time*.8+s.ph));ctx.fillStyle="#cfe8ff";ctx.fillRect(s.x*W,s.y*H,s.s,s.s)}ctx.globalAlpha=1}ctx.fillStyle="rgba(255,255,255,.06)";for(const c of clouds){const x=((c.x+B.time*c.spd)%(W+160))-80;ctx.beginPath();ctx.ellipse(x,c.y,c.w,7,0,0,6.28);ctx.fill()}drawHills(U.rgb(ZC.h1),12,G-10,6,1.3);drawHills(U.rgb(ZC.h2),8,G-3,14,4.1);ctx.fillStyle=U.rgb(ZC.gr);ctx.fillRect(-8,G,W+16,H-G+8);ctx.fillStyle="rgba(255,255,255,.13)";ctx.fillRect(-8,G,W+16,2);ctx.fillStyle="rgba(255,255,255,.05)";for(let x=-((B.time*44)%28);x<W;x+=28)ctx.fillRect(x,G+6,12,2)}
@@ -93,10 +213,41 @@
     const age=h.deadAge||0;
     if(age<1.5){const a=1-age/1.5;ctx.save();ctx.globalAlpha=a*.85;ctx.fillStyle="#cfe8ff";ctx.shadowColor="#cfe8ff";ctx.shadowBlur=12;ctx.beginPath();ctx.arc(x+Math.sin(age*6)*3,G-12-age*46,4.5,0,6.28);ctx.fill();ctx.restore()}
     ctx.fillStyle="#ff9aaa";ctx.font="bold 12px serif";ctx.textAlign="center";ctx.fillText("💀",x,G-bh*sq-8)}
+  function drawSkillCD(h,x,yBase,hd){
+    const kit=HERO_SKILLS[hd.id];if(!kit)return;
+    const p1=Math.max(0,Math.min(1,h.sk.a1/kit.a1.cd)),p2=Math.max(0,Math.min(1,h.sk.a2/kit.a2.cd));
+    const draw=(cx,cy,p,c)=>{ctx.strokeStyle="rgba(0,0,0,.6)";ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx,cy,5,0,6.28);ctx.stroke();
+      ctx.strokeStyle=p<=0?"#78ff7a":c;ctx.lineWidth=2;ctx.beginPath();ctx.arc(cx,cy,5,-Math.PI/2,-Math.PI/2+(1-p)*6.28);ctx.stroke();
+      if(p<=0){ctx.fillStyle="#78ff7a";ctx.font="bold 6px sans-serif";ctx.textAlign="center";ctx.fillText("✓",cx,cy+2.2)}};
+    draw(x-10,yBase,p1,"#ffd866");draw(x+10,yBase,p2,"#ff7a3d");
+  }
+  function drawBuffBar(h,x,yBase){
+    const b=h.buffs;if(!b)return;const keys=Object.keys(b).filter(k=>typeof b[k]==="number"&&b[k]>0);if(!keys.length)return;
+    const palette={shieldT:{icon:"🛡",color:"#ffd866"},arcane:{icon:"✦",color:"#b06cff"},haste:{icon:"☯",color:"#78ff7a"},darkPact:{icon:"☠",color:"#b06cff"}};
+    let dx=-((keys.length-1)*7);
+    for(const k of keys){const p=palette[k]||{icon:"●",color:"#fff"};
+      ctx.fillStyle=p.color;ctx.globalAlpha=.9;ctx.beginPath();ctx.arc(x+dx,yBase,4.5,0,6.28);ctx.fill();
+      ctx.fillStyle="#0a0612";ctx.font="bold 6px sans-serif";ctx.textAlign="center";ctx.fillText(p.icon,x+dx,yBase+2.2);
+      ctx.globalAlpha=1;dx+=14}
+  }
   function drawHeroes(k,G){let i=0;for(const hd of C.heroes){if(!T.S.heroes[hd.id]?.rec||!T.inParty(hd.id))continue;const h=B.hs[hd.id],s=T.getSprite(hd,"hero")[0],sc=scaleOf(s),flip=hd.sprite?.face==="left",bob=h.dead?0:Math.round(Math.sin(B.time*5+i*1.7)),lx=h.lunge*(hd.range==="melee"?10:-3),x=h.x-s.w*sc/2+lx,y=G-s.h*sc+bob;
     if(h.dead){drawFallen(h,hd,s,sc,G);i++;continue}
-    shadow(h.x,G-2,s.w*sc*.42);spr(s,x,y,sc,{flip});if(h.hurt>0)spr(s,x,y,sc,{img:s.hurt,alpha:h.hurt/.18*.7,flip});if(h.healGlow>0)spr(s,x,y,sc,{img:s.heal,alpha:h.healGlow/.3*.5,flip});const bw=Math.max(34,s.w*sc),pct=U.clamp(h.hp/h.maxHp,0,1);ctx.fillStyle="rgba(0,0,0,.65)";ctx.fillRect(h.x-bw/2,y-9,bw,5);ctx.fillStyle=pct>.5?"#78ff7a":pct>.25?"#ffb020":"#ff4d62";ctx.fillRect(h.x-bw/2,y-9,bw*pct,5);ctx.fillStyle="rgba(242,234,219,.85)";ctx.font="bold 8px Courier New";ctx.textAlign="center";ctx.fillText(`${U.fmt(h.hp)}/${U.fmt(h.maxHp)}`,h.x,y-12);i++}}
-  function drawMonsters(k,G){const sorted=[...B.monsters].sort((a,b)=>a.x-b.x);for(const m of sorted){const frames=T.getSprite(m.def,"mob"),s=frames[Math.floor(B.time*6+m.seed)%frames.length],sc=scaleOf(s)*(m.boss?1.3:1),flip=m.def.sprite?.face!=="left",sw=s.w*sc,sh=s.h*sc,bob=m.flying?Math.sin(B.time*6+m.seed)*4:Math.round(Math.sin(B.time*7+m.seed)),y=G-sh+bob-(m.flying?20*k:0),x=m.x-sw/2-m.lunge*6;shadow(m.x,G-2,sw*(m.flying?.3:.42));ctx.save();if(m.dead){const t=m.deathT/.25;ctx.globalAlpha=t;ctx.translate(m.x,y+sh/2);ctx.scale(1+(1-t)*.35,1+(1-t)*.35);ctx.translate(-m.x,-(y+sh/2))}spr(s,x,y,sc,{flip});if(m.flash>0)spr(s,x,y,sc,{flip,img:s.flash,alpha:m.flash/.12*.85});ctx.restore();if(!m.dead){const bw=m.boss?92*k:Math.max(28,sw),pct=U.clamp(m.hp/m.maxHp,0,1);ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(m.x-bw/2,y-8,bw,4);ctx.fillStyle=pct>.5?"#78ff7a":pct>.25?"#ffb020":"#ff4d62";ctx.fillRect(m.x-bw/2,y-8,bw*pct,4);if(m.boss){ctx.fillStyle="#ffb8c8";ctx.font="bold 10px Courier New";ctx.textAlign="center";ctx.fillText("👑 "+m.def.name,m.x,y-13)}}}}
+    shadow(h.x,G-2,s.w*sc*.42);
+    if(h.buffs?.shieldT>0){ctx.save();ctx.strokeStyle="rgba(255,216,102,"+(0.35+0.35*Math.sin(B.time*5))+")";ctx.lineWidth=2;ctx.beginPath();ctx.arc(h.x,G-s.h*sc*.5,s.w*sc*.7,0,6.28);ctx.stroke();ctx.restore()}
+    spr(s,x,y,sc,{flip});if(h.hurt>0)spr(s,x,y,sc,{img:s.hurt,alpha:h.hurt/.18*.7,flip});if(h.healGlow>0)spr(s,x,y,sc,{img:s.heal,alpha:h.healGlow/.3*.5,flip});
+    const bw=Math.max(34,s.w*sc),pct=U.clamp(h.hp/h.maxHp,0,1);ctx.fillStyle="rgba(0,0,0,.65)";ctx.fillRect(h.x-bw/2,y-9,bw,5);ctx.fillStyle=pct>.5?"#78ff7a":pct>.25?"#ffb020":"#ff4d62";ctx.fillRect(h.x-bw/2,y-9,bw*pct,5);ctx.fillStyle="rgba(242,234,219,.85)";ctx.font="bold 8px Courier New";ctx.textAlign="center";ctx.fillText(`${U.fmt(h.hp)}/${U.fmt(h.maxHp)}`,h.x,y-12);
+    drawSkillCD(h,h.x,y-22,hd);
+    drawBuffBar(h,h.x,y-32);
+    i++}}
+  function drawMonsters(k,G){const sorted=[...B.monsters].sort((a,b)=>a.x-b.x);for(const m of sorted){const frames=T.getSprite(m.def,"mob"),s=frames[Math.floor(B.time*6+m.seed)%frames.length],sc=scaleOf(s)*(m.boss?1.3:1),flip=m.def.sprite?.face!=="left",sw=s.w*sc,sh=s.h*sc,bob=m.flying?Math.sin(B.time*6+m.seed)*4:Math.round(Math.sin(B.time*7+m.seed)),y=G-sh+bob-(m.flying?20*k:0),x=m.x-sw/2-m.lunge*6;shadow(m.x,G-2,sw*(m.flying?.3:.42));
+    if(m.boss&&m.def.id==="flame_lord"){ctx.save();ctx.globalAlpha=0.18+0.12*Math.sin(B.time*4);ctx.fillStyle="#ff7a3d";ctx.beginPath();ctx.ellipse(m.x,G-4,sw*.9,10,0,0,6.28);ctx.fill();ctx.globalAlpha=1;ctx.restore()}
+    if(m.boss&&m.def.id==="crystal_titan"&&m.buffs?.crystalShell>0){ctx.save();ctx.strokeStyle="rgba(56,223,255,"+(0.4+0.4*Math.sin(B.time*6))+")";ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(m.x,G-sh*.5,sw*.6,sh*.6,0,0,6.28);ctx.stroke();ctx.restore()}
+    if(m.boss&&m.def.id==="shadow_king"){ctx.save();ctx.globalAlpha=0.35+0.2*Math.sin(B.time*3);ctx.fillStyle="#b06cff";ctx.beginPath();ctx.ellipse(m.x,G-sh*.5,sw*.55,sh*.55,0,0,6.28);ctx.fill();ctx.globalAlpha=1;ctx.restore()}
+    if(m.boss&&m.buffs?.rage>0){ctx.save();ctx.globalAlpha=0.45;ctx.strokeStyle="#ff4d62";ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(m.x,G-sh*.5,sw*.55,sh*.55,0,0,6.28);ctx.stroke();ctx.globalAlpha=1;ctx.restore()}
+    if(m.buffs?.chilled>0){ctx.save();ctx.globalAlpha=0.4;ctx.fillStyle="#38dfff";ctx.beginPath();ctx.ellipse(m.x,G-sh*.5,sw*.45,sh*.45,0,0,6.28);ctx.fill();ctx.globalAlpha=1;ctx.restore()}
+    if(m.buffs?.cursed>0){ctx.save();ctx.globalAlpha=0.4+0.3*Math.sin(B.time*7);ctx.fillStyle="#b06cff";ctx.beginPath();ctx.ellipse(m.x,G-sh*.5,sw*.5,sh*.5,0,0,6.28);ctx.fill();ctx.globalAlpha=1;ctx.restore()}
+    ctx.save();if(m.dead){const t=m.deathT/.25;ctx.globalAlpha=t;ctx.translate(m.x,y+sh/2);ctx.scale(1+(1-t)*.35,1+(1-t)*.35);ctx.translate(-m.x,-(y+sh/2))}spr(s,x,y,sc,{flip});if(m.flash>0)spr(s,x,y,sc,{flip,img:s.flash,alpha:m.flash/.12*.85});ctx.restore();
+    if(!m.dead){const bw=m.boss?92*k:Math.max(28,sw),pct=U.clamp(m.hp/m.maxHp,0,1);ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(m.x-bw/2,y-8,bw,4);ctx.fillStyle=pct>.5?"#78ff7a":pct>.25?"#ffb020":"#ff4d62";ctx.fillRect(m.x-bw/2,y-8,bw*pct,4);if(m.boss){ctx.fillStyle="#ffb8c8";ctx.font="bold 10px Courier New";ctx.textAlign="center";ctx.fillText("👑 "+m.def.name,m.x,y-13)}}}}
   function drawProjectiles(k){for(const p of B.projs){ctx.save();if(p.type==="heal"){ctx.shadowColor=p.color;ctx.shadowBlur=12;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,4,0,6.28);ctx.fill();ctx.fillStyle="#fff";ctx.fillRect(p.x-1,p.y-3,2,6);ctx.fillRect(p.x-3,p.y-1,6,2)}else if(p.type==="arrow"){const t=p.target,a=Math.atan2(t?gy()-24-p.y:0,t?t.x-p.x:1);ctx.translate(p.x,p.y);ctx.rotate(a);ctx.strokeStyle=p.color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-7,0);ctx.lineTo(7,0);ctx.stroke();ctx.fillStyle="#fff";ctx.fillRect(5,-1.5,3,3)}else if(p.type==="hammer"){ctx.translate(p.x,p.y);ctx.rotate(B.time*13);ctx.fillStyle=p.color;ctx.fillRect(-5,-5,10,10);ctx.fillStyle="#8a5a2b";ctx.fillRect(-1.5,3,3,8)}else{ctx.shadowColor=p.color;ctx.shadowBlur=12;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,4.5,0,6.28);ctx.fill();ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(p.x,p.y,1.8,0,6.28);ctx.fill()}ctx.restore()}}
   function drawParticles(){for(const p of B.parts){const a=U.clamp(p.life/p.max,0,1);if(p.soul){ctx.save();ctx.globalAlpha=a*.9;ctx.fillStyle=p.color;ctx.shadowColor=p.color;ctx.shadowBlur=10;ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,6.28);ctx.fill();ctx.restore()}else if(p.ring){ctx.strokeStyle=p.color;ctx.globalAlpha=a;ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,(1-a)*p.s+4,0,6.28);ctx.stroke();ctx.globalAlpha=1}else if(p.coin){ctx.globalAlpha=a;ctx.fillStyle="#ffd866";ctx.beginPath();ctx.arc(p.x,p.y,p.s,0,6.28);ctx.fill();ctx.fillStyle="#fff8d8";ctx.fillRect(p.x-1,p.y-1.5,1.5,1.5);ctx.globalAlpha=1}else{ctx.globalAlpha=a;ctx.fillStyle=p.color;ctx.fillRect(p.x-p.s/2,p.y-p.s/2,p.s,p.s);ctx.globalAlpha=1}}}
   function drawBeams(k,G){for(const b of B.beams){const a=1-b.t/b.dur,x=b.x,g=ctx.createLinearGradient(0,0,0,G);g.addColorStop(0,"rgba(255,255,255,0)");g.addColorStop(.55,b.color+"55");g.addColorStop(1,b.color+"cc");ctx.fillStyle=g;ctx.fillRect(x-13*k,0,26*k,G);ctx.globalAlpha=a;ctx.fillStyle=b.color;ctx.font="bold 18px serif";ctx.textAlign="center";ctx.fillText("🎁",x,G-42*k-b.t*22);ctx.globalAlpha=1}}
