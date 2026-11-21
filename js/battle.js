@@ -7,7 +7,7 @@
   const ZC={},REDUCED=matchMedia("(prefers-reduced-motion: reduce)"),zoneRGBCache={},bgCache={};
   function zoneRGB(z){let c=zoneRGBCache[z.id];if(!c)c=zoneRGBCache[z.id]={sky1:U.hex2rgb(z.colors.sky1),sky2:U.hex2rgb(z.colors.sky2),h1:U.hex2rgb(z.colors.hill1),h2:U.hex2rgb(z.colors.hill2),gr:U.hex2rgb(z.colors.ground)};return c}
   function cropToCanvas(im,r){const iw=im.naturalWidth||im.width,ih=im.naturalHeight||im.height,sx=Math.round(r[0]*iw),sy=Math.round(r[1]*ih),sw=Math.max(2,Math.round(r[2]*iw)),sh=Math.max(2,Math.round(r[3]*ih)),c=document.createElement("canvas");c.width=sw;c.height=sh;c.getContext("2d").drawImage(im,sx,sy,sw,sh,0,0,sw,sh);return c}
-  function zoneBg(z){if(!z.bg||!z.bg.src)return null;let e=bgCache[z.id];if(!e){e=bgCache[z.id]={img:null};
+  function zoneBg(z){if(!z||!z.bg||!z.bg.src)return null;let e=bgCache[z.id];if(!e){e=bgCache[z.id]={img:null};
     const set=(im,r)=>{e.img=r?cropToCanvas(im,r):im};
     T.loadImage(z.bg.src).then(im=>set(im,z.bg.region)).catch(()=>{if(z.bg.fb)T.loadImage(z.bg.fb.src).then(im2=>set(im2,z.bg.fb.region)).catch(()=>{})});
   }return e.img}
@@ -34,17 +34,18 @@
     ring(h.x,gy()-20*K(),"#ff4d62",26*K());
     float("💀 погиб",h.x,gy()-52*K(),"#ff9aaa",true);
     E.emit("log",{msg:`💀 ${h.def.name} пал в бою`,type:"danger"});E.emit("sfx","death");shake(3,.25)}
-  function mostInjured(){let best=null,bestRatio=1;for(const hd of T.partyDefs()){const h=B.hs[hd.id];if(h.dead||h.maxHp<=0)continue;const ratio=h.hp/h.maxHp;if(ratio<bestRatio-.001){bestRatio=ratio;best=h}}return bestRatio<.999?best:null}
+  // самый раненый СОЮЗНИК кроме указанного (лекарь не должен зацикливаться на себе)
+  function mostInjuredExcept(exId){let best=null,bestRatio=1;for(const hd of T.partyDefs()){if(hd.id===exId)continue;const h=B.hs[hd.id];if(h.dead||h.maxHp<=0)continue;const ratio=h.hp/h.maxHp;if(ratio<bestRatio-.001){bestRatio=ratio;best=h}}return bestRatio<.999?best:null}
   function applyHeal(h,amount,crit){if(h.dead)return;const before=h.hp;h.hp=Math.min(h.maxHp,h.hp+amount);const real=h.hp-before;h.healGlow=.3;const s=T.getSprite(h.def,"hero")[0],sc=scaleOf(s);float("+"+U.fmt(real),h.x,gy()-s.h*sc-10,"#78ff7a",crit);burst(h.x,gy()-s.h*sc*.5,"#78ff7a",8,80);E.emit("sfx","heal")}
   const Battle=T.battle={
     init(){setZoneInstant();syncHeroHp()},
     resize(){const wrap=document.getElementById("stageWrap");W=Math.max(280,wrap.clientWidth);H=Math.max(120,wrap.clientHeight);dpr=Math.min(2,devicePixelRatio||1);canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);SC=W<700?3:W<1100?4:5},
-    startWave(w,opt={}){const S=T.S,prevZone=T.waves.zoneFor(S.wave).zone.id;S.wave=w;B.monsters=[];B.projs=[];B.beams=[];B.boss=null;B.bossWave=T.waves.isBoss(w);B.waveTotal=T.waves.count(w);B.spawnLeft=B.waveTotal;B.waveKills=0;B.spawnInt=T.waves.spawnInt(w);B.spawnT=.35;B.state="fight";B.bossT=BAL.boss.timer;B.advance=0;for(const hd of C.heroes){const hs=S.heroes[hd.id],h=B.hs[hd.id];if(!hs?.rec||!T.inParty(hd.id))continue;const st=T.derived.heroStats(hd.id);h.maxHp=st.maxHp;h.hp=st.maxHp;h.dead=false;h.deadAge=0;h.deadX=null;h.hurt=0;h.healGlow=0;h.cool=U.rand(.1,.6);h.x=h.home}const z=T.waves.zoneFor(w);if(B.bossWave)banner("👑 "+T.waves.bossDef(w).name,"boss");else if(!opt.silent)banner("ВОЛНА "+w);if(z.zone.id!==prevZone)E.emit("toast",{msg:`${z.zone.icon||"🗺"} Новая зона: ${z.zone.name}`,type:"info"});E.emit("wave",{wave:w,boss:B.bossWave})},
+    startWave(w,opt={}){const S=T.S,prevZone=T.waves.zoneFor(S.wave).zone.id;S.wave=w;B.monsters=[];B.projs=[];B.beams=[];B.boss=null;B.bossWave=T.waves.isBoss(w);B.waveTotal=T.waves.count(w);B.spawnLeft=B.waveTotal;B.waveKills=0;B.spawnInt=T.waves.spawnInt(w);B.spawnT=.35;B.state="fight";B.bossT=BAL.boss.timer;B.advance=0;for(const hd of C.heroes){const hs=S.heroes[hd.id],h=B.hs[hd.id];if(!hs?.rec||!T.inParty(hd.id))continue;const st=T.derived.heroStats(hd.id);h.maxHp=st.maxHp;h.hp=st.maxHp;h.dead=false;h.deadAge=0;h.deadX=null;h.hurt=0;h.healGlow=0;h.cool=U.rand(.1,.6);h.x=h.home}const z=T.waves.zoneFor(w);zoneBg(z.zone);if(B.bossWave)banner("👑 "+T.waves.bossDef(w).name,"boss");else if(!opt.silent)banner("ВОЛНА "+w);if(z.zone.id!==prevZone)E.emit("toast",{msg:`${z.zone.icon||"🗺"} Новая зона: ${z.zone.name}`,type:"info"});E.emit("wave",{wave:w,boss:B.bossWave})},
     update(dt){const S=T.S;B.time+=dt;S.stats.play+=dt;if(B.state==="inter"){B.t-=dt;if(B.t<=0)Battle.startWave(B.next)}else{if(B.spawnLeft>0){B.spawnT-=dt;if(B.spawnT<=0){Battle.spawn(B.bossWave);B.spawnLeft--;B.spawnT=B.spawnInt}}if(B.bossWave&&B.boss&&!B.boss.dead){B.bossT-=dt;if(B.bossT<=0){Battle.retreat("⏱ Босс не повержен за "+BAL.boss.timer+"с!","БОСС ВЫСТОЯЛ");return}}if(B.spawnLeft===0&&B.monsters.every(m=>m.dead))Battle.clearWave()}
       const k=K(),F=T.formation(),n=F.length,STEP=44*k,baseX=80*k;
       const homeBase=i=>baseX+(n-1-i)*STEP;
       const fm=frontMonster();
-      const maxA=Math.max(0,W*0.66-homeBase(0));
+      const maxA=Math.max(0,W*0.5-homeBase(0));
       const targetA=fm?U.clamp(fm.x-40*k-homeBase(0),0,maxA):B.advance;
       const march=150*k;
       B.advance+=U.clamp(targetA-B.advance,-march*dt,march*dt);
@@ -55,22 +56,23 @@
         h.x=h.home;
         const st=T.derived.heroStats(hd.id);h.maxHp=st.maxHp;h.hp=Math.min(h.maxHp,h.hp+st.regen*dt);
         if(hd.role==="healer"){
-          h.cool-=dt;const ally=mostInjured();
-          if(ally&&h.cool<=0){h.cool=1/st.speed;h.lunge=1;const crit=Math.random()*100<st.crit,amount=st.dmg*(crit?st.critDmg/100:1),spr=T.getSprite(hd,"hero")[0],sc=scaleOf(spr);B.projs.push({type:"heal",x:h.x+10*k,y:gy()-spr.h*sc*.6,targetHero:ally,amount,crit,color:hd.projColor||"#78ff7a",done:false})}
-          else if(!ally&&h.cool<=0&&fm){h.cool=1/st.speed;h.lunge=1;const crit=Math.random()*100<st.crit,dmg=st.dmg*(crit?st.critDmg/100:1),spr=T.getSprite(hd,"hero")[0],sc=scaleOf(spr);B.projs.push({x:h.x+12*k,y:gy()-spr.h*sc*.58,type:hd.projectile||"orb",color:hd.projColor||"#78ff7a",target:fm,dmg,crit,splash:hd.splash||0,done:false});E.emit("sfx","fire")}
+          h.cool-=dt;
+          if(h.cool<=0){
+            // лечим других раненых; себя — только ниже 60% HP, иначе бьём врага (нет бесконечного самолечения)
+            const ally=mostInjuredExcept(hd.id)||(h.hp/h.maxHp<0.6?h:null);
+            if(ally){h.cool=1/st.speed;h.lunge=1;const crit=Math.random()*100<st.crit,amount=st.dmg*(crit?st.critDmg/100:1),spr=T.getSprite(hd,"hero")[0],sc=scaleOf(spr);B.projs.push({type:"heal",x:h.x+10*k,y:gy()-spr.h*sc*.6,targetHero:ally,amount,crit,color:hd.projColor||"#78ff7a",done:false})}
+            else if(fm){h.cool=1/st.speed;h.lunge=1;const crit=Math.random()*100<st.crit,dmg=st.dmg*(crit?st.critDmg/100:1),spr=T.getSprite(hd,"hero")[0],sc=scaleOf(spr);B.projs.push({x:h.x+12*k,y:gy()-spr.h*sc*.58,type:hd.projectile||"orb",color:hd.projColor||"#78ff7a",target:fm,dmg,crit,splash:hd.splash||0,done:false});E.emit("sfx","fire")}
+          }
         }
         else{
-          // мили бьют БЛИЖАЙШего монстра; радиус учитывает позицию в строю и максимальную полосу остановки монстров,
-          // поэтому герой больше не «стоит» после пары ударов
           const target=nearestMonster(h.x)||fm;
           const reach=(176+fi*44)*k;
           h.cool-=dt;
           const inRange=hd.range==="melee"?(target?Math.abs(target.x-h.x)<=reach:false):true;
-          if(h.cool<=0&&target&&inRange){h.cool=1/st.speed;h.lunge=1;const crit=Math.random()*100<st.crit,dmg=st.dmg*(crit?st.critDmg/100:1);if(hd.range==="melee"){Battle.damage(target,dmg,{crit});ring(target.x,gy()-20*k,crit?"#ff7a3d":"#f2f6ff",18*k);burst(target.x,gy()-20*k,"#f2f6ff",4,65);E.emit("sfx","hit")}else{const spr=T.getSprite(hd,"hero")[0],sc=scaleOf(spr);B.projs.push({x:h.x+12*k,y:gy()-spr.h*sc*.58,type:hd.projectile||"orb",color:hd.projColor||hd.color||"#38dfff",target,dmg,crit,splash:hd.splash||0,done:false});E.emit("sfx",hd.projectile==="fire"?"fire":hd.projectile==="arrow"?"arrow":hd.projectile==="hammer"?"hammer":"fire")}}
-        }
+          if(h.cool<=0&&target&&inRange){h.cool=1/st.speed;h.lunge=1;const crit=Math.random()*100<st.crit,dmg=st.dmg*(crit?st.critDmg/100:1);if(hd.range==="melee"){Battle.damage(target,dmg,{crit});ring(target.x,gy()-20*k,crit?"#ff7a3d":"#f2f6ff",18*k);burst(target.x,gy()-20*k,"#f2f6ff",4,65);E.emit("sfx","hit")}else{const spr=T.getSprite(hd,"hero")[0],sc=scaleOf(spr);B.projs.push({x:h.x+12*k,y:gy()-spr.h*sc*.58,type:hd.projectile||"orb",color:hd.projColor||hd.color||"#38dfff",target,dmg,crit,splash:hd.splash||0,done:false});E.emit("sfx",hd.projectile==="fire"?"fire":hd.projectile==="arrow"?"arrow":hd.projectile==="hammer"?"hammer":"fire")}}}
       }
       for(const p of B.projs){if(p.type==="heal"){const th=p.targetHero;if(!th||th.dead){p.done=true;continue}const spr=T.getSprite(th.def,"hero")[0],sc=scaleOf(spr),tx=th.x,ty=gy()-spr.h*sc*.55,dx=tx-p.x,dy=ty-p.y,dist=Math.hypot(dx,dy),spd=330*k;if(dist<10*k){applyHeal(th,p.amount,p.crit);p.done=true;continue}p.x+=dx/dist*spd*dt;p.y+=dy/dist*spd*dt;if(Math.random()<dt*30)B.parts.push({x:p.x,y:p.y,vx:U.rand(-12,12),vy:U.rand(-12,12),g:0,life:.25,max:.25,color:p.color,s:2});continue}if(!p.target||p.target.dead){p.target=nearestMonster(p.x)||frontMonster();if(!p.target){p.done=true;continue}}const frames=T.getSprite(p.target.def,"mob"),ms=scaleOf(frames[0]),sh=frames[0].h*ms,tx=p.target.x,ty=gy()-sh*.52-(p.target.flying?20*k:0),dx=tx-p.x,dy=ty-p.y,dist=Math.hypot(dx,dy),spd=390*k;if(dist<11*k){Battle.damage(p.target,p.dmg,{crit:p.crit});if(p.splash){for(const m of B.monsters)if(!m.dead&&m!==p.target&&Math.abs(m.x-tx)<p.splash*k)Battle.damage(m,p.dmg*.6,{color:"#ff7a3d"});burst(tx,ty,p.color,13,120);E.emit("sfx","boom")}else burst(tx,ty,p.color,4,65);p.done=true;continue}p.x+=dx/dist*spd*dt;p.y+=dy/dist*spd*dt;if(p.type==="fire"&&Math.random()<dt*38)B.parts.push({x:p.x,y:p.y,vx:U.rand(-14,14),vy:U.rand(-14,14),g:0,life:.25,max:.25,color:p.color,s:2})}
-      B.projs=B.projs.filter(p=>!p.done);for(const p of B.parts){p.life-=dt;if(p.coin&&p.life<.45){p.vx=U.lerp(p.vx,(W-20-p.x)*4,.25);p.vy=U.lerp(p.vy,(8-p.y)*4,.25)}else p.vy+=(p.g||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}B.parts=B.parts.filter(p=>p.life>0);for(const t of B.texts){t.life-=dt;t.y-=30*dt}B.texts=B.texts.filter(t=>t.life>0);for(const b of B.beams)b.t+=dt;B.beams=B.beams.filter(b=>b.t<b.dur);B.shake.t=Math.max(0,B.shake.t-dt);lerpZone(dt)},
+      B.projs=B.projs.filter(p=>!p.done);for(const p of B.parts){p.life-=dt;if(p.coin&&p.life<.45){p.vx=U.lerp(p.vx,(W-20-p.x)*4,.25);p.vy=U.lerp(p.vy,(8-p.y)*4,.25)}else p.vy+=(p.g||0)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}B.parts=B.parts.filter(p=>p.life>0);for(const t of B.texts){t.life-=dt;t.y-=30*dt}B.texts=B.texts.filter(t=>t.life>0);for(const b of B.beams)b.t+=dt;B.beams=B.beams.filter(b=>b.t<b.dur);B.shake.t=Math.max(0,B.shake.t-dt);const zNow=T.waves.zoneFor(S.wave).zone;if(!zoneBg(zNow))lerpZone(dt)},
     spawn(boss){const S=T.S,k=K(),def=boss?T.waves.bossDef(S.wave):U.pick(T.waves.mobPool(S.wave)),hp=T.waves.enemyHp(S.wave,boss,def),m={def,boss,hp,maxHp:hp,x:W+45,slot:(B.waveTotal-B.spawnLeft)%6,jit:U.rand(0,10),spd:boss?90*k*(def.speedMult||1):(BAL.enemy.speedBase+U.rand(0,12)+Math.min(BAL.enemy.speedMaxBonus,S.wave*BAL.enemy.speedPerWave))*k*(def.speedMult||1)*2.5,dmg:Math.max(1,Math.ceil(Math.pow(hp,BAL.combat.monsterDmgPow)*BAL.combat.monsterDmgScale*(boss?BAL.combat.bossDmgMult:1))),atkT:U.rand(.8,1.4),flash:0,lunge:0,dead:false,deathT:0,seed:U.rand(6.28),flying:!!def.flying};B.monsters.push(m);if(boss){B.boss=m;shake(3,.3);E.emit("sfx","boss")}},
     damage(m,dmg,o={}){if(m.dead)return;m.hp-=dmg;m.flash=.12;const frames=T.getSprite(m.def,"mob"),ms=scaleOf(frames[0]),sh=frames[0].h*ms;float(U.fmt(dmg)+(o.crit?"!":""),m.x+U.rand(-6,6),gy()-sh-(m.flying?20*K():0)-5,o.color||(o.crit?"#ff7a3d":"#f2eadb"),o.crit);if(m.hp<=0)Battle.kill(m)},
     kill(m){const S=T.S;m.dead=true;m.deathT=.25;T.econ.addGold(T.waves.enemyGold(S.wave,m.boss,m.def),{x:m.x,y:gy()-24});burst(m.x,gy()-18*K(),m.boss?"#ff4d62":m.def.color||"#78ff7a",m.boss?30:10,m.boss?150:100);coins(m.x,gy()-24,3);E.emit("sfx","coin");S.stats.kills++;B.waveKills++;T.items.maybeDrop(S.wave,m.boss,m.x,gy()-30,m.def.name);if(m.boss){S.stats.bosses++;B.boss=null;banner("БОСС ПОВЕРЖЕН!","gold");shake(6,.42);E.emit("sfx","bossdie");E.emit("log",{msg:"👑 Повержен "+m.def.name+" (волна "+S.wave+")",type:"boss"});if(S.wave===T.waves.victoryWave()&&!S.victory){S.victory=true;T.save();E.emit("victory")}}},
