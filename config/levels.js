@@ -3,8 +3,9 @@
   TBH.config = TBH.config || {};
   const X = "assets/expansion.png";
   const BG = "assets/bg_atlas.png";
-  // 8 равных полос атласа фонов (сверху вниз): лес, пустошь, пещеры, пики, замок, кристаллы, вулкан, проклятый лес
-  const band = i => [0, i * 0.125 + 0.008, 1, 0.109];
+  // 8 равных полос атласа фонов (сверху вниз): лес, пустошь, пещеры, пики, замок, кристаллы, вулкан, проклятый лес.
+  // Отступы по краям убирают чёрную рамку атласа (левая/правая полосы и разделители).
+  const band = i => [0.008, i * 0.125 + 0.008, 0.984, 0.109];
   const FB_CRY = {src:X, region:[0.01,0.51,0.46,0.11]}, FB_VOL = {src:X, region:[0.01,0.665,0.46,0.11]}, FB_FOR = {src:X, region:[0.01,0.82,0.46,0.11]};
   TBH.config.levelRules = { bossEvery:5, loop:true, loopHpMult:3.2, loopGoldMult:2, victoryWave:null };
   TBH.config.levels = [
