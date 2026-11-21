@@ -119,7 +119,8 @@ button:disabled{cursor:not-allowed}
 .filters{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px 10px;border-bottom:1px solid rgba(138,106,47,.4)}
 select{background:#120f18;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:700 11px var(--mono);cursor:pointer;min-width:0;color:var(--ink)}
 select:focus{outline:1px solid var(--gold)}
-.heroCard,.itemCard,.campCard{display:flex;gap:10px;align-items:center;padding:10px;border-radius:12px;margin-bottom:8px;background:rgba(255,255,255,.04);border:1px solid rgba(138,106,47,.5);transition:.14s}
+.heroCard,.itemCard,.campCard{display:flex; gap:10px;align-items:center;padding:10px;border-radius:12px;margin-bottom:8px;background:rgba(255,255,255,.04);border:1px solid rgba(138,106,47,.5);transition:.14s}
+.campCard{flex-direction: column;}
 .heroCard:hover,.itemCard:hover,.campCard:hover{border-color:rgba(201,162,39,.6);background:rgba(201,162,39,.06)}
 .heroCard.locked{opacity:.72}
 .portrait,.itemIcon,.campIcon{width:50px;height:50px;flex:none;border-radius:10px;display:grid;place-items:center;background:#0d0a13;border:2px solid var(--bronze);image-rendering:pixelated}

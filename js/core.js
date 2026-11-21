@@ -70,11 +70,24 @@
   };
   const KEY="tbh_idle_equipment_v1";
   const CAP=()=>C.partyCap||4;
+  // миграция id героев со старого ростера на новый, чтобы старые сохранения и переносы не теряли прогресс
+  const HERO_MIG={knight:"paladin",healer:"necro"};
   function freshHeroes(){const h={};for(const d of C.heroes){const free=(d.recruitCost||0)<=0,eq={};for(const s of Object.keys(C.slots))eq[s]=null;h[d.id]={lvl:free?1:0,rec:free,equip:eq}}return h}
   function defaults(){return{v:2,gold:BAL.startGold||0,gems:0,wave:1,maxWave:1,heroes:freshHeroes(),party:[],order:[],inventory:[],equipped:{},nextUid:1,lazaretLvl:0,mineLvl:0,settings:{speed:1,muted:false,auto:true,autoSell:"off"},prestiges:0,victory:false,hint:true,lastSeen:Date.now(),stats:{kills:0,bosses:0,gold:0,play:0,drops:0}}}
   let S=defaults(),hadSave=false;
   function validateItem(it){const def=C.items.find(x=>x.id===it.defId);if(!def||!C.slots[def.slot]||!it.stats)return null;const rar=C.rarities.find(r=>r.id===it.rarity)||C.rarities[0];return{uid:String(it.uid||("i"+S.nextUid++)),defId:def.id,slot:def.slot,rarity:rar.id,ilvl:Math.max(1,it.ilvl|0||1),stats:it.stats,value:Math.max(1,it.value|0||1)}}
-  T.load=function(){S=defaults();try{const raw=localStorage.getItem(KEY);if(raw){const d=JSON.parse(raw);hadSave=true;S=Object.assign(defaults(),d);S.settings=Object.assign(defaults().settings,d.settings||{});S.stats=Object.assign(defaults().stats,d.stats||{});S.lazaretLvl=Math.max(0,(d.lazaretLvl??d.wallLvl??0)|0);const fresh=freshHeroes();for(const id in fresh){const old=(d.heroes||{})[id];if(old){fresh[id].lvl=Math.max(0,old.lvl|0);fresh[id].rec=!!old.rec||fresh[id].lvl>0;fresh[id].equip=Object.assign(fresh[id].equip,old.equip||{})}}S.heroes=fresh;let party=Array.isArray(d.party)?d.party.filter(id=>S.heroes[id]?.rec):C.heroes.filter(h=>S.heroes[h.id].rec).map(h=>h.id);party=[...new Set(party)].slice(0,CAP());if(!party.length){const first=C.heroes.find(h=>S.heroes[h.id].rec);if(first)party=[first.id]}S.party=party;S.order=Array.isArray(d.order)?d.order.filter(id=>S.heroes[id]?.rec):[];S.inventory=(d.inventory||[]).map(validateItem).filter(Boolean);S.equipped={};for(const uid in(d.equipped||{})){const it=validateItem(d.equipped[uid]);if(it)S.equipped[it.uid]=it}for(const hid in S.heroes){const h=S.heroes[hid];for(const slot in h.equip){const uid=h.equip[slot];if(uid&&(!S.equipped[uid]||S.equipped[uid].slot!==slot))h.equip[slot]=null}}const used=new Set();for(const hid in S.heroes)for(const s in S.heroes[hid].equip){const u=S.heroes[hid].equip[s];if(u)used.add(u)}for(const uid in S.equipped)if(!used.has(uid)){S.inventory.push(S.equipped[uid]);delete S.equipped[uid]}S.wave=U.clamp(S.wave|0||1,1,999999);S.maxWave=Math.max(S.maxWave|0||1,S.wave)}}catch(e){console.warn("load failed",e)}T.S=S;return{state:S,hadSave}};
+  function ensureParty(){if(!S.party.length){const rec=C.heroes.filter(h=>S.heroes[h.id]?.rec).map(h=>h.id);S.party=rec.slice(0,CAP())}S.party=S.party.filter(id=>S.heroes[id]?.rec).slice(0,CAP());if(!S.party.length){const first=C.heroes.find(h=>S.heroes[h.id]?.rec);if(first)S.party=[first.id]}}
+  T.load=function(){S=defaults();try{const raw=localStorage.getItem(KEY);if(raw){const d=JSON.parse(raw);hadSave=true;S=Object.assign(defaults(),d);S.settings=Object.assign(defaults().settings,d.settings||{});S.stats=Object.assign(defaults().stats,d.stats||{});S.lazaretLvl=Math.max(0,(d.lazaretLvl??d.wallLvl??0)|0);
+    const fresh=freshHeroes();
+    const rawH=d.heroes||{},dh={};
+    for(const k in rawH){const nk=(HERO_MIG[k]&&fresh[HERO_MIG[k]]&&!rawH[HERO_MIG[k]])?HERO_MIG[k]:k;dh[nk]=rawH[k]}
+    for(const id in fresh){const old=dh[id];if(old){fresh[id].lvl=Math.max(0,old.lvl|0);fresh[id].rec=!!old.rec||fresh[id].lvl>0;fresh[id].equip=Object.assign(fresh[id].equip,old.equip||{})}}
+    const pal=dh.paladin;if(pal?.rec&&fresh.necro&&!dh.necro){}
+    S.heroes=fresh;
+    let party=Array.isArray(d.party)?d.party.map(id=>(HERO_MIG[id]&&dh[HERO_MIG[id]])?HERO_MIG[id]:id).filter(id=>S.heroes[id]?.rec):C.heroes.filter(h=>S.heroes[h.id].rec).map(h=>h.id);
+    party=[...new Set(party)].slice(0,CAP());S.party=party;ensureParty();
+    S.order=Array.isArray(d.order)?d.order.map(id=>(HERO_MIG[id]&&dh[HERO_MIG[id]])?HERO_MIG[id]:id).filter(id=>S.heroes[id]?.rec):[];
+    S.inventory=(d.inventory||[]).map(validateItem).filter(Boolean);S.equipped={};for(const uid in(d.equipped||{})){const it=validateItem(d.equipped[uid]);if(it)S.equipped[it.uid]=it}for(const hid in S.heroes){const h=S.heroes[hid];for(const slot in h.equip){const uid=h.equip[slot];if(uid&&(!S.equipped[uid]||S.equipped[uid].slot!==slot))h.equip[slot]=null}}const used=new Set();for(const hid in S.heroes)for(const s in S.heroes[hid].equip){const u=S.heroes[hid].equip[s];if(u)used.add(u)}for(const uid in S.equipped)if(!used.has(uid)){S.inventory.push(S.equipped[uid]);delete S.equipped[uid]}S.wave=U.clamp(S.wave|0||1,1,999999);S.maxWave=Math.max(S.maxWave|0||1,S.wave)}}catch(e){console.warn("load failed",e)}T.S=S;return{state:S,hadSave}};
   T.save=function(){S.lastSeen=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S));E.emit("saved")}catch(e){}};
   T.hadSave=()=>hadSave;
   T.inParty=id=>S.party.includes(id);
@@ -139,7 +152,10 @@
     mineCost(){return Math.ceil(BAL.economy.mineCostBase*Math.pow(BAL.economy.mineCostGrowth,S.mineLvl))},
     upgradeMine(){const c=EC.mineCost();if(S.gold<c)return false;S.gold-=c;S.mineLvl++;E.emit("heroes");E.emit("sfx","lvl");T.save();return true},
     prestGain(){return S.maxWave<BAL.prestige.minWave?0:Math.max(1,Math.floor(Math.pow(S.maxWave/BAL.prestige.formulaDiv,BAL.prestige.formulaPow)))},
-    doPrestige(){const gain=EC.prestGain();if(gain<1)return 0;const stats=S.stats,settings=S.settings,gems=S.gems+gain,prest=S.prestiges+1,victory=S.victory,hint=S.hint;S=Object.assign(defaults(),{gems,prestiges:prest,stats,settings,victory,hint});T.S=S;E.emit("heroes");E.emit("inv");E.emit("party");E.emit("prestige");E.emit("toast",{msg:`💎 Перерождение! +${gain} кристаллов`,type:"success"});E.emit("sfx","bossdie");T.save();return gain}
+    doPrestige(){const gain=EC.prestGain();if(gain<1)return 0;const stats=S.stats,settings=S.settings,gems=S.gems+gain,prest=S.prestiges+1,victory=S.victory,hint=S.hint;S=Object.assign(defaults(),{gems,prestiges:prest,stats,settings,victory,hint});
+      // после сброса отряд не должен остаться пустым, иначе бой «зависает» без героев
+      S.party=C.heroes.filter(h=>S.heroes[h.id]?.rec).map(h=>h.id).slice(0,CAP());S.order=[];ensureParty();
+      T.S=S;E.emit("heroes");E.emit("inv");E.emit("party");E.emit("prestige");E.emit("toast",{msg:`💎 Перерождение! +${gain} кристаллов`,type:"success"});E.emit("sfx","bossdie");T.save();return gain}
   };
   T.log=(msg,type="info",color)=>E.emit("log",{msg,type,color});
   T.toast=(msg,type="info")=>E.emit("toast",{msg,type});
