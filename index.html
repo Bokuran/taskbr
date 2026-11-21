@@ -33,15 +33,17 @@
       <div class="stageHead">
         <div class="zone"><span id="zoneIcon">🌲</span><div><b id="zoneName">Изумрудный лес</b><small id="waveLabel">Волна 1</small></div></div>
         <div class="waveTools">
-          <button id="prevWave" class="miniBtn" title="Предыдущая волна">◀</button>
+          <span id="stageNow" class="stageNow">этап 1/10</span>
+          <div id="stageChain" class="stageChain" aria-label="Этапы текущей локации"></div>
+          <button id="mapBtn" class="miniBtn mapBtn" title="Карта прогресса: локации, уровни, этапы" aria-label="Карта прогресса">🗺</button>
           <span id="progress" class="progressText">0/0</span>
-          <button id="nextWave" class="miniBtn" title="Следующая волна">▶</button>
           <button id="autoBtn" class="autoChip">АВТО ▶</button>
         </div>
       </div>
-      <div class="bossBar" id="bossBar"><span id="bossName">БОСС</span><div><i id="bossFill"></i></div><b id="bossTime">45с</b></div>
       <div class="stageWrap" id="stageWrap">
-        <canvas id="stage"></canvas><div class="scan"></div><div id="banner" class="banner"></div>
+        <canvas id="stage"></canvas>
+        <div class="bossBar" id="bossBar"><span id="bossName">БОСС</span><div><i id="bossFill"></i></div><b id="bossTime">45с</b></div>
+        <div class="scan"></div><div id="banner" class="banner"></div>
         <div id="pauseOverlay" class="pauseOverlay">ПАУЗА</div><div id="hurt" class="hurt"></div>
       </div>
       <div class="stageFoot">
