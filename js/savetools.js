@@ -1,9 +1,9 @@
-/* TBH Save Tools v2 — перенос и загрузка сохранений между устройствами/браузерами.
-   Автономный модуль: сам добавляет кнопку 💾, свою модалку в стиле игры, миграцию ростера,
-   подтверждение импорта после перезагрузки и диагностику источника. */
+/* TBH Save Tools v3 — перенос и загрузка сохранений между устройствами/браузерами.
+   v3: перезагрузка после импорта/восстановления больше не даёт автосохранению
+   при выгрузке страницы перезаписать только что загруженный сейв. */
 (function(){
   const T=window.TBH;if(!T||!T.S)return;
-  const U=T.util,VER=2;
+  const U=T.util,VER=3;
   const KEY="tbh_idle_equipment_v1",BAK="tbh_backup_v1",FLAG="tbh_import_flag",SLOT=i=>"tbh_slot_"+i;
   const HERO_MIG={knight:"paladin",healer:"necro"};
 
@@ -81,6 +81,19 @@
   const chip=(i,l,v)=>`<span class="svChip"><i>${i}</i>${l}: <b>${v}</b></span>`;
   const chips=p=>`<div class="svChips">${chip("🌊","волна",p.wave)}${chip("🏔","рекорд",p.max)}${chip("🪙","золото",U.fmt(p.gold))}${chip("💎","кристаллы",p.gems)}${chip("⚔","нанято",p.rec)}${chip("🛡","в отряде",p.party)}${chip("💠","перерожд.",p.prest)}${chip("💀","убийств",U.fmt(p.kills))}${p.at?chip("🕒","сохранено",p.at.toLocaleString("ru-RU")):""}</div>`;
 
+  /* Перезагрузка БЕЗ автосохранения при выгрузке: иначе pagehide/beforeunload
+     (зарегистрированные в main.js прямой ссылкой на оригинальный T.save)
+     перезапишут только что загруженный сейв старым состоянием. */
+  function safeReload(){
+    try{
+      const orig=T.save;
+      removeEventListener("beforeunload",orig);
+      removeEventListener("pagehide",orig);
+      T.save=function(){};
+    }catch(e){}
+    location.reload();
+  }
+
   const root=document.createElement("div");root.className="modal";root.id="svModal";
   root.innerHTML=`<div class="scrim"></div><div class="card" style="width:min(600px,94vw)"><div class="sub">TBH · SAVE TOOLS v${VER}</div><h2>💾 Сохранения и перенос</h2><div id="svBody"></div><div class="modalBtns"><button class="ghostBtn" id="svClose">Закрыть</button></div></div>`;
   document.body.appendChild(root);
@@ -92,7 +105,6 @@
   function close(){root.classList.remove("on");pending=null}
   function err(msg){const e=body.querySelector("#svErr");if(e){e.textContent="⚠ "+msg;e.classList.add("on")}T.toast(msg,"danger")}
 
-  /* подтверждение успешного импорта после перезагрузки */
   (function(){const f=readJSON(FLAG);if(f){delJSON(FLAG);setTimeout(()=>T.toast(`✅ Перенос применён: волна ${f.wave} · 💎 ${f.gems} · ⚔ героев ${f.rec}`,"success"),600)}})();
 
   function renderMain(){
@@ -103,7 +115,7 @@
       return `<div class="svSlot empty"><span class="n">${i}</span><span class="info">Пустой слот</span><button class="svBtn" data-act="toslot" data-slot="${i}">Сохранить сюда</button></div>`}).join("");
     body.innerHTML=`
       <div class="svSec">Это устройство</div>
-      <div class="svChips">${chip("🌐","адрес",location.host)}${chip("🧩","версия кода","v7")}</div>
+      <div class="svChips">${chip("🌐","адрес",location.host)}${chip("🧩","модуль","v"+VER)}</div>
       <p class="svHint">Сохранения живут в браузере конкретного адреса: ПК (локально) и телефон (GitHub Pages) — разные хранилища. Перенос — файлом или кодом ниже.</p>
       <div class="svSec">Текущее сохранение</div>${chips(p)}
       <div class="svRow"><button class="svBtn" data-act="file">💾 Скачать файл</button><button class="svBtn" data-act="code">📋 Копировать код переноса</button></div>
@@ -148,9 +160,9 @@
     if(!writeRaw(JSON.stringify(pending))){err("Не удалось записать сохранение: хранилище браузера недоступно (приватный режим?).");return}
     const p=preview(pending);writeJSON(FLAG,{at:new Date().toISOString(),wave:p.wave,gems:p.gems,rec:p.rec});
     T.toast("Сохранение записано — перезапуск…","success");
-    setTimeout(()=>location.reload(),400);
+    safeReload();
   }
-  function restore(){const b=readJSON(BAK);if(!b||!b.raw){err("Резервная копия пуста.");return}if(!writeRaw(b.raw)){err("Не удалось записать.");return}delJSON(BAK);T.toast("Предыдущее сохранение возвращено — перезапуск…","success");setTimeout(()=>location.reload(),400)}
+  function restore(){const b=readJSON(BAK);if(!b||!b.raw){err("Резервная копия пуста.");return}if(!writeRaw(b.raw)){err("Не удалось записать.");return}delJSON(BAK);T.toast("Предыдущее сохранение возвращено — перезапуск…","success");safeReload()}
 
   function act(a,slot){
     T.audio&&T.audio.play("click");

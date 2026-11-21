@@ -23,15 +23,14 @@
   }
   function replaceHintFor(uid,heroId){const S=T.S,it=S.inventory.find(i=>i.uid===uid),h=heroId?S.heroes[heroId]:null;if(!it||!h?.rec)return"";const oldUid=h.equip[it.slot];if(!oldUid||!S.equipped[oldUid])return"";const od=T.derived.itemDef(S.equipped[oldUid]);return`Заменит: ${od.icon} ${od.name}`}
   function buildFilters(){for(const k in C.slots)refs.filterSlot.append(new Option(C.slots[k].icon+" "+C.slots[k].name,k));C.rarities.forEach(r=>refs.filterRarity.append(new Option(r.name+"+",r.id)));if(T.S.settings.autoSell!=="off"&&T.S.settings.autoSell!=="spare")T.S.settings.autoSell="spare";refs.autoSell.value=T.S.settings.autoSell}
-  function heroStatLine(st){const main=st.isHealer?`✚ ${U.fmt(st.hps)}/с`:`⚔ ${U.fmt(st.dps)}/с`;return`${main} · ❤ ${U.fmt(st.maxHp)} · 🛡 ${st.defPct.toFixed(0)}% · ✚ ${st.regen.toFixed(1)}/с`}
+  function heroStatLine(st){const main=st.isHealer?`✚ ${U.fmt(st.hps)}/с · ⚔ ${U.fmt(st.dps)}/с`:`⚔ ${U.fmt(st.dps)}/с`;return`${main} · ❤ ${U.fmt(st.maxHp)} · 🛡 ${st.defPct.toFixed(0)}% · ✚ ${st.regen.toFixed(1)}/с`}
   function drawPortrait(cv,s,size,flip){size=size||46;const x=cv.getContext("2d");x.imageSmoothingEnabled=false;x.clearRect(0,0,size,size);x.save();if(flip){x.translate(size,0);x.scale(-1,1)}const sc=Math.min(size/s.w,size/s.h),dw=s.w*sc,dh=s.h*sc;x.drawImage(s.c,(size-dw)/2,(size-dh)/2,dw,dh);x.restore()}
-  // ===== Карта прогресса: цепочка этапов текущей локации + полная карта =====
   function stageState(w){const S=T.S;return w===S.wave?"current":w>S.maxWave?"locked":w<S.maxWave?"cleared":"avail"}
   function jumpWave(w){if(w<1||w>T.S.maxWave){toast("Этап ещё недоступен — сначала пройди предыдущие","info");return false}T.audio.play("click");T.battle.startWave(w,{silent:true});return true}
   function renderStageChain(){const S=T.S,box=refs.stageChain;if(!box)return;const key=S.wave+"/"+S.maxWave;if(key===chainKey)return;chainKey=key;
     const total=T.waves.total(),zi=C.levels.findIndex(z=>z.id===T.waves.zoneFor(S.wave).zone.id),tier=Math.floor((S.wave-1)/total),base=tier*total+zi*(C.levels[zi].waves||10),n=C.levels[zi].waves||10;
     box.innerHTML="";for(let i=0;i<n;i++){const w=base+i+1,st=stageState(w),boss=T.waves.isBoss(w);const b=el("button","stageDot "+st+(boss?" boss":""));b.title=`Этап ${i+1}/${n} · Волна ${w}${boss?" · БОСС":""}${st==="locked"?" (закрыто)":""}`;b.setAttribute("aria-label",b.title);if(st==="locked")b.disabled=true;else b.onclick=()=>{jumpWave(w)};box.append(b)}
-    setText(refs.stageNow,`этап ${((S.wave-1)% (C.levels[zi].waves||10))+1}/${n}`)}
+    setText(refs.stageNow,`этап ${((S.wave-1)%(C.levels[zi].waves||10))+1}/${n}`)}
   function showWorldMap(){
     const S=T.S,total=T.waves.total(),Z=C.levels;
     const curTier=Math.floor((S.wave-1)/total),maxTier=Math.floor((Math.max(S.maxWave,S.wave)-1)/total);
@@ -83,7 +82,7 @@
     setText(refs.bagCount,`${S.inventory.length}/${BAL.drops.inventoryCap}`);
     const spare=T.items.spareItems(),spareGold=spare.reduce((s,i)=>s+i.value,0);
     refs.sellSpare.disabled=!spare.length;
-    setText(refs.sellSpare,spare.length?`🧹 Продать лишнее · ${spare.length} шт · ${U.fmt(spareGold)}🪙`:" Лишнего нет");
+    setText(refs.sellSpare,spare.length?`🧹 Продать лишнее · ${spare.length} шт · ${U.fmt(spareGold)}🪙`:"🧹 Лишнего нет");
     box.innerHTML="";
     let list=[...S.inventory];
     const slot=refs.filterSlot.value,rar=refs.filterRarity.value,sort=refs.sortItems.value;
@@ -139,6 +138,19 @@
   function banner(txt,cls=""){const b=refs.banner;b.className="banner";void b.offsetWidth;b.textContent=txt;b.className="banner show "+cls}
   function modal(opts){modalOpen=true;modalPause=!!opts.pause;const root=document.getElementById("modal");root.classList.add("on");root.innerHTML=`<div class="scrim"></div><div class="card"><div class="sub">${opts.sub||"TBH"}</div><h2>${opts.icon||""} ${opts.title}</h2><div>${opts.html}</div><div class="modalBtns"></div></div>`;const btns=root.querySelector(".modalBtns");(opts.buttons||[{label:"OK"}]).forEach(b=>{const btn=el("button",b.cls||"bigBtn"+(b.danger?" danger":""),b.label);btn.onclick=()=>{T.audio.init();T.audio.play("click");if(b.fn)b.fn();closeModal()};btns.append(btn)});if(opts.after)opts.after(root.querySelector(".card"))}
   function closeModal(){const root=document.getElementById("modal");root.classList.remove("on");root.innerHTML="";modalOpen=false;modalPause=false}
+  function hardReset(){
+    try{
+      const orig=T.save;
+      removeEventListener("beforeunload",orig);
+      removeEventListener("pagehide",orig);
+      T.save=function(){};
+      localStorage.setItem("tbh_wipe","1");
+      localStorage.removeItem("tbh_idle_equipment_v1");
+      localStorage.removeItem("tbh_backup_v1");
+      localStorage.removeItem("tbh_import_flag");
+    }catch(e){}
+    location.reload();
+  }
   function showSellSpare(){
     const spare=T.items.spareItems();
     if(!spare.length){toast("✓ Лишних предметов нет — надето всё лучшее","success");return}
@@ -151,7 +163,7 @@
       buttons:[{label:"Отмена",cls:"ghostBtn"},{label:"Продать",fn:()=>T.items.sellSpare()},{label:"✨ Надеть лучшее и продать",fn:()=>{T.items.autoEquip();T.items.sellSpare()}}]});
   }
   function showPrestige(){const gain=T.econ.prestGain();if(gain<1)return;modal({title:"Перерождение",sub:"НОВЫЙ КРУГ СИЛЫ",icon:"💎",html:`<p>Сбросятся: волна, золото, герои, лазарет, жила, <b>весь инвентарь и экипировка</b>.</p><p>Останутся: кристаллы и статистика. Вы получите <b style="color:var(--cyan)">💎 ${gain}</b> — это навсегда <b>+${gain*Math.round(BAL.prestige.gemBonus*100)}%</b> к урону, лечению и золоту.</p>`,buttons:[{label:"Отмена",cls:"ghostBtn"},{label:"Переродиться",fn:()=>T.econ.doPrestige()}]})}
-  function showReset(){modal({title:"Сбросить сохранение?",sub:"ОПАСНАЯ ЗОНА",icon:"⚠️",html:`<p>Все герои, золото, кристаллы, предметы и прогресс будут <b style="color:var(--red)">удалены навсегда</b>.</p>`,buttons:[{label:"Отмена",cls:"ghostBtn"},{label:"Стереть всё",danger:true,fn:()=>{try{localStorage.removeItem("tbh_idle_equipment_v1")}catch(e){}location.reload()}}]})}
+  function showReset(){modal({title:"Сбросить сохранение?",sub:"ОПАСНАЯ ЗОНА",icon:"⚠️",html:`<p>Все герои, золото, кристаллы, предметы и прогресс будут <b style="color:var(--red)">удалены навсегда</b>, включая резервную копию переноса.</p><p style="opacity:.75">Локальные слоты 💾 и скачанные файлы-копии останутся — из них можно восстановиться.</p>`,buttons:[{label:"Отмена",cls:"ghostBtn"},{label:"Стереть всё",danger:true,fn:hardReset}]})}
   function showVictory(){const S=T.S,fin=T.waves.bossDef(T.waves.victoryWave());modal({title:"Мир покорен!",sub:"ПОБЕДА · ВОЛНА "+T.waves.victoryWave(),icon:"🏆",html:`<p>${fin.name} повержен. Но орды бесконечны — отряд готов идти дальше.</p><p><b>Убийств:</b> ${U.fmt(S.stats.kills)} · <b>Боссов:</b> ${U.fmt(S.stats.bosses)} · <b>Предметов:</b> ${U.fmt(S.stats.drops)} · <b>Время:</b> ${U.fmtTime(S.stats.play)}</p>`,buttons:[{label:"⚔ Продолжить автобой",fn:()=>{}}]})}
-  function showHelp(){modal({title:"Как играть",sub:"TBH · IDLE RPG",icon:"📖",html:`<ul><li>Герои сражаются <b>полностью сами</b> и идут к врагу единым строем.</li><li>Навигация — <b>🗺 карта прогресса</b>: локации, уровни (круги) и этапы связаны в цепочку; клик переносит отряд на доступный этап. Цепочка точек в шапке — этапы текущей локации.</li><li>Зелёный — текущий этап, золотой — пройденный, синий — доступный, тусклый — закрытый; 👑 — босс.</li><li>Отряд — максимум <b>4 героя</b>. Кнопка <b>👥</b> — состав (актив/резерв), <b>⚙</b> — построение (позиция 1 всегда танк).</li><li>У каждого героя есть <b>HP над головой</b>. Монстры бьют переднего живого героя.</li><li><b>Некромант</b> лечит раненых, а когда все здоровы — бьёт тёмными сферами по площади.</li><li>Броня даёт HP, защиту и реген конкретному герою.</li><li>В начале каждой волны отряд полностью восстанавливается и возвращается в строй. Если все пали — отступление.</li><li>Экипировка падает с монстров (${Math.round(BAL.drops.chance*100)}%) и боссов (100%). <b>✨ Автоэкипировка</b> надевает лучшее на отряд.</li><li><b>🧹 Продать лишнее</b> — продаёт всё вне лучшего комплекта; если лучшее надето (✓) — сразу, без окна.</li><li>Режим <b>«Авто: всё лишнее»</b> продаёт хлам при дропе.</li><li>Окна не останавливают бой. Пауза — <b>P</b>.</li><li><b>P</b> — пауза, <b>M</b> — звук, <b>H</b> — справка, <b>E</b> — автоэкипировка.</li></ul>`})}
+  function showHelp(){modal({title:"Как играть",sub:"TBH · IDLE RPG",icon:"📖",html:`<ul><li>Герои сражаются <b>полностью сами</b> и идут к врагу единым строем.</li><li>Навигация — <b>🗺 карта прогресса</b>: локации, круги и этапы связаны в цепочку; клик переносит отряд на доступный этап. Цепочка точек в шапке — этапы текущей локации.</li><li>Зелёный — текущий этап, золотой — пройденный, синий — доступный, тусклый — закрытый; 👑 — босс.</li><li>Отряд — максимум <b>4 героя</b>. Кнопка <b>👥</b> — состав (актив/резерв), <b>⚙</b> — построение (позиция 1 всегда танк).</li><li>Кнопка <b>💾</b> — перенос сохранений между устройствами (файл/код), слоты и резервная копия.</li><li>У каждого героя есть <b>HP над головой</b>. Монстры бьют переднего живого героя.</li><li><b>Некромант</b> лечит раненых, а когда все здоровы — бьёт тёмными сферами по площади.</li><li>Броня даёт HP, защиту и реген конкретному герою.</li><li>В начале каждой волны отряд полностью восстанавливается и возвращается в строй. Если все пали — отступление.</li><li>Экипировка падает с монстров (${Math.round(BAL.drops.chance*100)}%) и боссов (100%). <b>✨ Автоэкипировка</b> надевает лучшее на отряд.</li><li><b>🧹 Продать лишнее</b> — продаёт всё вне лучшего комплекта; если лучшее надето (✓) — сразу, без окна.</li><li>Режим <b>«Авто: всё лишнее»</b> продаёт хлам при дропе.</li><li>Окна не останавливают бой. Пауза — <b>P</b>.</li><li><b>P</b> — пауза, <b>M</b> — звук, <b>H</b> — справка, <b>E</b> — автоэкипировка.</li></ul>`})}
 })();
