@@ -24,14 +24,19 @@
   function processSheet(img,count){
     const w=img.naturalWidth||img.width,h=img.naturalHeight||img.height,c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d",{willReadFrequently:true});x.drawImage(img,0,0);const id=x.getImageData(0,0,w,h),d=id.data;
     const corner=(px,py)=>{const i=(py*w+px)*4;return[d[i],d[i+1],d[i+2]]};
-    const bg=corner(0,0),isBg=(r,g,b)=>{const dist=Math.abs(r-bg[0])+Math.abs(g-bg[1])+Math.abs(b-bg[2]);if(bg[0]>140&&bg[2]>140&&bg[1]<120)return(r>130&&b>130&&g<130&&dist<260);return dist<90};
+    const bg=corner(0,0),isPink=(r,g,b)=>r>140&&b>140&&g<Math.min(r,b)-40;
+    const isBg=(r,g,b)=>{const dist=Math.abs(r-bg[0])+Math.abs(g-bg[1])+Math.abs(b-bg[2]);return isPink(r,g,b)||dist<90};
     for(let i=0;i<d.length;i+=4)if(d[i+3]>0&&isBg(d[i],d[i+1],d[i+2]))d[i+3]=0;
     x.putImageData(id,0,0);
     const colCount=new Array(w).fill(0);for(let py=0;py<h;py++)for(let px=0;px<w;px++)if(d[(py*w+px)*4+3]>40)colCount[px]++;
     const minCol=Math.max(3,Math.floor(h*.02)),occ=colCount.map(v=>v>=minCol);let clusters=[],start=-1;
     for(let px=0;px<=w;px++){const on=px<w&&occ[px];if(on&&start<0)start=px;if(!on&&start>=0){clusters.push([start,px-1]);start=-1}}
     const mergeGap=Math.max(4,Math.floor(w*.012)),merged=[];for(const cl of clusters){if(merged.length&&cl[0]-merged[merged.length-1][1]<=mergeGap)merged[merged.length-1][1]=cl[1];else merged.push([...cl])}
-    clusters=merged;if(clusters.length!==count){clusters=[];for(let i=0;i<count;i++)clusters.push([Math.floor(i*w/count),Math.floor((i+1)*w/count)-1])}
+    clusters=merged;
+    if(clusters.length!==count){
+      if(count===1&&clusters.length>1){let best=null,bw=-1;for(const[a,b]of clusters){let s=0;for(let px=a;px<=b;px++)s+=colCount[px];if(s>bw){bw=s;best=[a,b]}}clusters=[best]}
+      else{clusters=[];for(let i=0;i<count;i++)clusters.push([Math.floor(i*w/count),Math.floor((i+1)*w/count)-1])}
+    }
     return clusters.map(([x0,x1])=>{
       const rowCnt=new Array(h).fill(0);
       for(let py=0;py<h;py++)for(let px=x0;px<=x1;px++)if(d[(py*w+px)*4+3]>40)rowCnt[py]++;
@@ -56,7 +61,7 @@
     else if(def.sprite?.frames)out=def.sprite.frames.map(r=>buildSprite(r,def.sprite.palette||{}));
     else{const col=def.color||"#8fa2cc",pal={h:U.shade(col,35),f:"#ffd9a8",a:col,b:U.shade(col,-55),w:"#f2f6ff",c:col,e:"#101322",m:col,d:U.shade(col,-60),y:"#ffd866"};out=[buildSprite(kind==="hero"?FB_HERO:(def.boss?FB_BOSS:FB_MOB),pal)]}
     spriteCache[key]=out;const sp=def.sprite;
-    if(sp?.src){const count=Math.max(1,sp.count||1),index=U.clamp(sp.index||0,0,count-1);loadImage(sp.src).then(img=>{const boxes=sp.region?processSheet(cropRegion(img,sp.region),1):processSheet(img,count);spriteCache[key]=[spriteFromBox(boxes[sp.region?0:index],sp.pixelHeight)];E.emit("sprites",{id:def.id})}).catch(()=>{})}
+    if(sp?.src){const count=Math.max(1,sp.count||1),index=U.clamp(sp.index||0,0,count-1);loadImage(sp.src).then(img=>{const boxes=sp.region?processSheet(cropRegion(img,sp.region),1):processSheet(img,count);const box=boxes[sp.region?0:index];if(box&&box.ch>0&&box.cw/box.ch>=0.15){spriteCache[key]=[spriteFromBox(box,sp.pixelHeight)];E.emit("sprites",{id:def.id})}}).catch(()=>{})}
     return out
   };
   const KEY="tbh_idle_equipment_v1";
